@@ -152,6 +152,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file("index.html")
             if path == "/app.js":
                 return self._file("app.js")
+            if path == "/ai.js":
+                return self._file("ai.js")
             if path == "/style.css":
                 return self._file("style.css")
 
