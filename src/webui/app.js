@@ -52,3 +52,5 @@ if(addGroupButton)addGroupButton.onclick=async()=>{
  try{await api('/api/intel/group',{name,keywords});$('#groupName').value='';$('#groupKeywords').value='';loadGroups();toast('监控合集已创建')}
  catch(e){toast(e.message)}
 };
+
+document.addEventListener('click',e=>{const n=e.target.closest('[data-page]');if(n&&n.dataset.page==='mixes')loadGroups()});
