@@ -168,6 +168,9 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
                 if not r.get("mix_id"):
                     # 与「因中断没跑到」区分：这类是视频本身没发布在任何合集里
                     stat["no_mix"] += 1
+                    if r.get("sec_uid"):
+                        authors[r["sec_uid"]] = r.get("author_name")
+                        intelligence.upsert_account_identity(r["sec_uid"], r.get("author_name"))
                     store.update_watch_resolved(item["id"], {
                         "aweme_id": aid, "sec_uid": r.get("sec_uid"),
                         "author_name": r.get("author_name"),
@@ -233,6 +236,7 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
                     intelligence.save_account_posts(sec_uid, discovered.get("author_name") or name, posts)
                     authors[sec_uid] = discovered.get("author_name") or name
                     stat["accounts_scanned"] += 1
+                    stat["ok"] += 1
                     stat["discovered_videos"] += len(posts)
                     stat["standalone_videos"] += sum(1 for p in posts if not p.get("mix_id"))
                     log(f"账号「{name}」发现 {len(posts)} 条公开作品，其中 {stat['standalone_videos']} 条累计为非合集作品")
