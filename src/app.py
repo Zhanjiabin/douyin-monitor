@@ -196,6 +196,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/intel/group":
                 return self._json({"ok": True, "items": intelligence.create_collection(data.get("name"), data.get("keywords", ""))})
+            if path == "/api/intel/ai-summary":
+                result = intelligence.ai_summary(data.get("niche", ""), data.get("stage", ""), data.get("format", ""), data.get("frequency", 5))
+                return self._json(result)
             if path == "/api/watchlist/add":
                 urls = extract_urls(data.get("text", ""))
                 if not urls:
