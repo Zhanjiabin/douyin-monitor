@@ -10,6 +10,7 @@
 import time
 
 import store
+import intelligence
 from collector import DouyinCollector
 from config import load_config
 from resolve import ResolveCache, resolve_aweme_id
@@ -53,16 +54,18 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
 
     store.init_db()
     items = store.active_watch_items()
-    total = len(items)
+    tracked_accounts = intelligence.active_tracked_accounts()
+    total = len(items) + len(tracked_accounts)
     run_id = store.run_start(total)
     fd = store.today_str()
 
     # no_mix = 视频本身不在任何合集（已处理）；skipped = 因中断没跑到的条数。
     # 两者以前混在一个计数器里，看日志分不清是哪种。
     stat = {"total": total, "ok": 0, "failed": 0, "skipped": 0, "no_mix": 0,
-            "mixes": 0, "interrupted": False}
+            "mixes": 0, "accounts_scanned": 0, "discovered_videos": 0,
+            "standalone_videos": 0, "interrupted": False}
     if total == 0:
-        log("清单为空，无需抓取")
+        log("没有待监控的视频链接或账号")
         store.run_finish(run_id, 0, 0, 0, "done", "empty watchlist")
         stat["elapsed"] = 0
         return stat
@@ -177,6 +180,7 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
                 mix_data[mid] = r
                 if r.get("sec_uid"):
                     authors[r["sec_uid"]] = r.get("author_name")
+                    intelligence.upsert_account_identity(r["sec_uid"], r.get("author_name"))
 
                 # 合集内所有分集的 aweme_id 一并缓存，之后可省一次页面加载
                 info = {"mix_id": mid, "mix_name": r.get("mix_name"),
@@ -214,6 +218,56 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
                             _interrupt("浏览器窗口已被关闭，本次任务提前结束")
                             break
                         raise
+
+            # ---- 账号监控：扫描主页公开作品并发现新增视频 ----
+            for account_idx, account in enumerate(tracked_accounts, 1):
+                if should_stop():
+                    _interrupt("收到停止指令")
+                    break
+                sec_uid = account["sec_uid"]
+                name = account.get("nickname") or account.get("note") or sec_uid
+                progress(len(items) + account_idx - 1, total, f"扫描账号 {name}")
+                try:
+                    discovered = col.collect_author_posts(sec_uid, max_pages=int(cfg.get("account_discovery_pages", 4) or 4))
+                    posts = discovered.get("items") or []
+                    intelligence.save_account_posts(sec_uid, discovered.get("author_name") or name, posts)
+                    authors[sec_uid] = discovered.get("author_name") or name
+                    stat["accounts_scanned"] += 1
+                    stat["discovered_videos"] += len(posts)
+                    stat["standalone_videos"] += sum(1 for p in posts if not p.get("mix_id"))
+                    log(f"账号「{name}」发现 {len(posts)} 条公开作品，其中 {stat['standalone_videos']} 条累计为非合集作品")
+                    # 对新发现的合集，进入已验证的 mix/aweme 采集路径获取真实分集播放量。
+                    limit = max(0, int(cfg.get("account_discovery_mix_limit", 5) or 0))
+                    candidates = {}
+                    for post in posts:
+                        mid = post.get("mix_id")
+                        if mid and mid not in mix_data and mid not in candidates:
+                            candidates[mid] = post["aweme_id"]
+                    for mid, representative in list(candidates.items())[:limit]:
+                        if should_stop():
+                            _interrupt("收到停止指令")
+                            break
+                        try:
+                            result = col.collect_video(representative)
+                            if result.get("mix_id") and result.get("episodes"):
+                                mix_data[result["mix_id"]] = result
+                                _persist_mix(result["mix_id"], result, fd)
+                                log(f"  新发现合集「{result.get('mix_name')}」已补采 {len(result.get('episodes') or [])} 集")
+                        except Exception as exc:
+                            log(f"  新发现合集采集失败：{str(exc)[:120]}")
+                        try:
+                            col.sleep_between()
+                        except Exception:
+                            pass
+                except Exception as exc:
+                    if _browser_gone(exc):
+                        _interrupt("浏览器窗口已被关闭")
+                        break
+                    store.x("UPDATE tracked_accounts SET last_error=? WHERE sec_uid=?", (str(exc)[:300], sec_uid))
+                    log(f"账号「{name}」作品发现失败：{str(exc)[:160]}")
+                if should_stop():
+                    _interrupt("收到停止指令")
+                    break
 
             # ---- 作者维度：官方合集总播放量（失败不影响已保存的分集数据）----
             if cfg.get("fetch_mix_total") and authors and not interrupted:
