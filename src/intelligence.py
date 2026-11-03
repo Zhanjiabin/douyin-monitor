@@ -156,3 +156,22 @@ def tracked_account_videos(sec_uid=None):
         sql+=" WHERE v.sec_uid=?";args=(sec_uid,)
     sql+=" ORDER BY COALESCE(v.create_time,0) DESC"
     return store.q(sql,args)
+
+def tracked_account_summary():
+    init_account_tables()
+    accounts=list_tracked_accounts()
+    for a in accounts:
+        counts=store.q("SELECT COUNT(*) c FROM tracked_account_videos WHERE sec_uid=?",(a["sec_uid"],))
+        a["video_count"]=counts[0]["c"] if counts else 0
+    return accounts
+
+def discovered_videos():
+    init_account_tables()
+    rows=store.q("SELECT v.*,a.nickname,a.profile_url,s.play_count,s.digg_count,s.comment_count,s.share_count,s.collect_count,s.metric_status snapshot_status,s.fetch_date FROM tracked_account_videos v LEFT JOIN tracked_accounts a ON a.sec_uid=v.sec_uid LEFT JOIN account_video_snapshots s ON s.aweme_id=v.aweme_id AND s.fetch_date=(SELECT MAX(s2.fetch_date) FROM account_video_snapshots s2 WHERE s2.aweme_id=v.aweme_id) ORDER BY COALESCE(v.create_time,0) DESC")
+    for r in rows:
+        mix=store.q("SELECT play_count,digg_count,comment_count,share_count,collect_count FROM video_snapshots WHERE aweme_id=? AND mix_id IS NOT NULL AND play_count IS NOT NULL ORDER BY fetch_date DESC LIMIT 1",(r["aweme_id"],))
+        if mix:
+            for k in ("play_count","digg_count","comment_count","share_count","collect_count"):
+                if mix[0].get(k) is not None:r[k]=mix[0][k]
+            r["snapshot_status"]="public_mix_metric"
+    return rows
