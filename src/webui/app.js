@@ -38,3 +38,17 @@ $('#exportBtn').onclick=async()=>{try{let r=await api('/api/export',{});await ap
 $('#importBtn').onclick=async()=>{let text=$('#importLinks').value.trim();if(!text)return toast('请先粘贴抖音链接');try{let r=await api('/api/watchlist/add',{text,note:$('#importNote').value.trim()});$('#importLinks').value='';toast('新增 '+r.added+' 条，重复 '+r.dup+' 条');loadWatchlist()}catch(e){toast(e.message)}};
 document.addEventListener('click',async e=>{let t=e.target.closest('[data-toggle],[data-delete]');if(!t)return;try{if(t.dataset.toggle)await api('/api/watchlist/toggle',{id:Number(t.dataset.toggle),enabled:t.dataset.enabled==='true'});else if(confirm('从清单移除？历史快照不会被删除。'))await api('/api/watchlist/delete',{id:Number(t.dataset.delete)});loadWatchlist()}catch(x){toast(x.message)}});
 refresh();
+
+async function loadGroups(){
+ try{
+  let d=await api('/api/intel/collections'),a=d.items||[];
+  $('#groupList').innerHTML=a.length?'<div class="table-wrap">'+table(['合集名称','关键词','命中视频','播放量合计'],a.map(x=>[esc(x.name),esc(x.keywords||'—'),x.video_count,fmt(x.play_sum)]))+'</div>':'<div class="empty">尚未创建自定义合集</div>';
+ }catch(e){$('#groupList').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}
+}
+const addGroupButton=$('#addGroup');
+if(addGroupButton)addGroupButton.onclick=async()=>{
+ const name=$('#groupName').value.trim(),keywords=$('#groupKeywords').value.trim();
+ if(!name)return toast('请填写合集名称');
+ try{await api('/api/intel/group',{name,keywords});$('#groupName').value='';$('#groupKeywords').value='';loadGroups();toast('监控合集已创建')}
+ catch(e){toast(e.message)}
+};
