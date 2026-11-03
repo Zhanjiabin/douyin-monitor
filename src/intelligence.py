@@ -54,3 +54,32 @@ def alerts():
     r=store.last_runs(1)
     if r and r[0].get("failed"):a.append({"type":"采集失败","level":"warning","title":"最近采集存在失败","detail":str(r[0]["failed"])+" 条链接失败"})
     return a
+
+def ai_summary(niche, stage, content_format, frequency):
+    import json
+    import os
+    import urllib.request
+    key=os.environ.get("OPENAI_API_KEY","").strip()
+    if not key:
+        return {"configured":False,"message":"未配置 OPENAI_API_KEY。当前规则诊断可用；配置后启用模型总结。"}
+    base=os.environ.get("OPENAI_BASE_URL","https://api.openai.com/v1").rstrip("/")
+    model=os.environ.get("OPENAI_MODEL","gpt-4o-mini")
+    sample=videos()[:30]
+    payload={"niche":niche,"stage":stage,"format":content_format,"weekly_posts":frequency,
+      "sample":[{"title":v.get("title"),"plays":v.get("play_count"),"play_delta":v.get("delta"),
+      "likes":v.get("digg_count"),"comments":v.get("comment_count"),"author":v.get("author_name"),
+      "mix":v.get("mix_name")} for v in sample]}
+    prompt=("你是短视频增长分析师。只根据提供的样本提出可验证的运营假设。"
+      "明确区分观测事实与推测；样本不足要直说；不得声称知道曝光、完播率、推荐流量来源或算法权重。"
+      "请用中文输出：账号定位、样本洞察、3个可测试内容支柱、7天发布实验、指标复盘方法、风险与证据缺口。"
+      "用户需求与监控样本如下："+json.dumps(payload,ensure_ascii=False))
+    body=json.dumps({"model":model,"messages":[{"role":"system","content":"你输出务实、具体、可验证的短视频运营建议。"},{"role":"user","content":prompt}],"temperature":0.4}).encode("utf-8")
+    req=urllib.request.Request(base+"/chat/completions",data=body,headers={"Authorization":"Bearer "+key,"Content-Type":"application/json"})
+    try:
+        with urllib.request.urlopen(req,timeout=45) as response:
+            data=json.loads(response.read().decode("utf-8"))
+        text=data.get("choices",[{}])[0].get("message",{}).get("content","")
+        if not text: return {"configured":True,"error":"模型返回为空"}
+        return {"configured":True,"model":model,"content":text,"sample_count":len(sample)}
+    except Exception as exc:
+        return {"configured":True,"error":str(exc)[:300]}
