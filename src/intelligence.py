@@ -83,3 +83,76 @@ def ai_summary(niche, stage, content_format, frequency):
         return {"configured":True,"model":model,"content":text,"sample_count":len(sample)}
     except Exception as exc:
         return {"configured":True,"error":str(exc)[:300]}
+
+def init_account_tables():
+    store.x("CREATE TABLE IF NOT EXISTS tracked_accounts (sec_uid TEXT PRIMARY KEY, profile_url TEXT NOT NULL, nickname TEXT, note TEXT DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT, last_scan_at TEXT, last_error TEXT)")
+    store.x("CREATE TABLE IF NOT EXISTS tracked_account_videos (aweme_id TEXT PRIMARY KEY, sec_uid TEXT NOT NULL, title TEXT, create_time INTEGER, mix_id TEXT, mix_name TEXT, first_seen TEXT, last_seen TEXT, metric_status TEXT DEFAULT 'unknown')")
+    store.x("CREATE INDEX IF NOT EXISTS idx_tav_sec_uid ON tracked_account_videos(sec_uid, create_time)")
+    store.x("CREATE TABLE IF NOT EXISTS account_video_snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, aweme_id TEXT NOT NULL, fetch_date TEXT NOT NULL, fetched_at TEXT NOT NULL, play_count INTEGER, digg_count INTEGER, comment_count INTEGER, share_count INTEGER, collect_count INTEGER, metric_status TEXT NOT NULL, source TEXT NOT NULL, UNIQUE(aweme_id,fetch_date))")
+    store.x("CREATE INDEX IF NOT EXISTS idx_avs_aweme ON account_video_snapshots(aweme_id,fetch_date)")
+
+def add_account(profile_url, note=""):
+    import re
+    from urllib.parse import urlparse
+    url=(profile_url or "").strip()
+    match=re.search(r"/user/([^/?#]+)",url)
+    sec_uid=match.group(1) if match else (url if re.fullmatch(r"[A-Za-z0-9_=-]{12,}",url) else "")
+    if not sec_uid: raise ValueError("请输入有效的抖音账号主页链接")
+    canonical="https://www.douyin.com/user/"+sec_uid
+    init_account_tables()
+    store.x("INSERT INTO tracked_accounts(sec_uid,profile_url,note,created_at) VALUES(?,?,?,?) ON CONFLICT(sec_uid) DO UPDATE SET profile_url=excluded.profile_url,note=CASE WHEN excluded.note='' THEN tracked_accounts.note ELSE excluded.note END",
+      (sec_uid,canonical,note or "",store.now_str()))
+    return list_tracked_accounts()
+
+def list_tracked_accounts():
+    init_account_tables()
+    return store.q("SELECT * FROM tracked_accounts ORDER BY created_at DESC")
+
+def active_tracked_accounts():
+    init_account_tables()
+    return store.q("SELECT * FROM tracked_accounts WHERE enabled=1 ORDER BY created_at")
+
+def toggle_tracked_account(sec_uid, enabled):
+    init_account_tables()
+    store.x("UPDATE tracked_accounts SET enabled=? WHERE sec_uid=?",(1 if enabled else 0,sec_uid))
+    return list_tracked_accounts()
+
+def delete_tracked_account(sec_uid):
+    init_account_tables()
+    store.x("DELETE FROM tracked_accounts WHERE sec_uid=?",(sec_uid,))
+    return list_tracked_accounts()
+
+def upsert_account_identity(sec_uid, nickname):
+    if not sec_uid: return
+    init_account_tables()
+    url="https://www.douyin.com/user/"+sec_uid
+    store.x("INSERT INTO tracked_accounts(sec_uid,profile_url,nickname,created_at) VALUES(?,?,?,?) ON CONFLICT(sec_uid) DO UPDATE SET nickname=COALESCE(NULLIF(excluded.nickname,''),tracked_accounts.nickname)",
+      (sec_uid,url,nickname or "",store.now_str()))
+
+def save_account_posts(sec_uid, nickname, posts):
+    init_account_tables()
+    upsert_account_identity(sec_uid,nickname)
+    now=store.now_str();fd=store.today_str()
+    for p in posts or []:
+        aid=str(p.get("aweme_id") or "")
+        if not aid: continue
+        mix_id=p.get("mix_id")
+        play=p.get("play_count")
+        # 作者作品列表接口中播放量可能为 0 占位；绝不将其记成真实 0。
+        public_play=play if play is not None and int(play)>0 else None
+        status="public" if public_play is not None else "not_exposed"
+        store.x("INSERT INTO tracked_account_videos(aweme_id,sec_uid,title,create_time,mix_id,mix_name,first_seen,last_seen,metric_status) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(aweme_id) DO UPDATE SET title=COALESCE(NULLIF(excluded.title,''),tracked_account_videos.title),create_time=COALESCE(excluded.create_time,tracked_account_videos.create_time),mix_id=COALESCE(excluded.mix_id,tracked_account_videos.mix_id),mix_name=COALESCE(excluded.mix_name,tracked_account_videos.mix_name),last_seen=excluded.last_seen,metric_status=excluded.metric_status",
+          (aid,sec_uid,p.get("title"),p.get("create_time"),mix_id,p.get("mix_name"),now,now,status))
+        store.x("INSERT INTO account_video_snapshots(aweme_id,fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,metric_status,source) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(aweme_id,fetch_date) DO UPDATE SET fetched_at=excluded.fetched_at,play_count=COALESCE(excluded.play_count,account_video_snapshots.play_count),digg_count=COALESCE(excluded.digg_count,account_video_snapshots.digg_count),comment_count=COALESCE(excluded.comment_count,account_video_snapshots.comment_count),share_count=COALESCE(excluded.share_count,account_video_snapshots.share_count),collect_count=COALESCE(excluded.collect_count,account_video_snapshots.collect_count),metric_status=excluded.metric_status,source=excluded.source",
+          (aid,fd,now,public_play,p.get("digg_count"),p.get("comment_count"),p.get("share_count"),p.get("collect_count"),status,"author_post"))
+    store.x("UPDATE tracked_accounts SET nickname=COALESCE(NULLIF(?,''),nickname),last_scan_at=?,last_error=NULL WHERE sec_uid=?",(nickname or "",now,sec_uid))
+    return len(posts or [])
+
+def tracked_account_videos(sec_uid=None):
+    init_account_tables()
+    sql="SELECT v.*,a.nickname,a.profile_url,s.play_count,s.digg_count,s.comment_count,s.share_count,s.collect_count,s.metric_status snapshot_status,s.fetch_date FROM tracked_account_videos v LEFT JOIN tracked_accounts a ON a.sec_uid=v.sec_uid LEFT JOIN account_video_snapshots s ON s.aweme_id=v.aweme_id AND s.fetch_date=(SELECT MAX(s2.fetch_date) FROM account_video_snapshots s2 WHERE s2.aweme_id=v.aweme_id)"
+    args=()
+    if sec_uid:
+        sql+=" WHERE v.sec_uid=?";args=(sec_uid,)
+    sql+=" ORDER BY COALESCE(v.create_time,0) DESC"
+    return store.q(sql,args)
