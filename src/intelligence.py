@@ -31,3 +31,26 @@ def collections():
         matched=[v for v in all_videos if any(k.lower() in ((v.get("title") or "")+" "+(v.get("mix_name") or "")).lower() for k in kws)]
         c["video_count"]=len(matched);c["play_sum"]=sum(v.get("play_count") or 0 for v in matched);c["videos"]=matched[:100];out.append(c)
     return out
+
+def create_collection(name,keywords=""):
+    init();name=(name or "").strip()
+    if not name: raise ValueError("合集名称不能为空")
+    if len(name)>60: raise ValueError("合集名称不能超过60字")
+    kws=",".join(dict.fromkeys(x.strip() for x in (keywords or "").replace("，",",").split(",") if x.strip()))
+    store.x("INSERT INTO intel_collections(name,keywords,created_at) VALUES(?,?,?)",(name,kws,store.now_str()))
+    return collections()
+
+def delete_collection(cid):
+    init()
+    store.x("DELETE FROM intel_collection_mix WHERE collection_id=?",(int(cid),))
+    store.x("DELETE FROM intel_collections WHERE id=?",(int(cid),))
+    return collections()
+
+def alerts():
+    from analyze import health,overview
+    h=health();o=overview();a=[]
+    for x in h.get("issues",[]):a.append({"type":"校验差异","level":"warning","title":x.get("mix_name"),"detail":"官方总量与分集求和差异 "+str(x.get("diff"))})
+    if o.get("stop_count"):a.append({"type":"停涨观察","level":"info","title":"合集停涨","detail":str(o["stop_count"])+" 个合集最近两次快照无增长"})
+    r=store.last_runs(1)
+    if r and r[0].get("failed"):a.append({"type":"采集失败","level":"warning","title":"最近采集存在失败","detail":str(r[0]["failed"])+" 条链接失败"})
+    return a
