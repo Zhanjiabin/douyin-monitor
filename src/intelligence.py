@@ -180,3 +180,13 @@ def discovered_videos():
         r["delta"]=(r.get("play_count")-prev[0]["play_count"]) if prev and r.get("play_count") is not None and prev[0].get("play_count") is not None else None
     return rows
 
+
+def video_history(aweme_id):
+    init_account_tables()
+    aid=str(aweme_id or "").strip()
+    if not aid: return []
+    mix=store.q("SELECT fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,'public_mix_metric' metric_status FROM video_snapshots WHERE aweme_id=? ORDER BY fetch_date",(aid,))
+    account=store.q("SELECT fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,metric_status FROM account_video_snapshots WHERE aweme_id=? ORDER BY fetch_date",(aid,))
+    by={x["fetch_date"]:x for x in account}
+    for x in mix: by[x["fetch_date"]]=x
+    return [by[k] for k in sorted(by)]
