@@ -170,7 +170,7 @@ class Handler(BaseHTTPRequestHandler):
                                    "stats": analyze.watch_stats()})
             if path == "/api/result":
                 ov = analyze.overview()
-                details = {m["mix_id"]: analyze.mix_detail(m["mix_id"], m)["episodes"]
+                details = {m["mix_id"]: analyze.mix_detail(m["mix_id"], m)
                            for m in ov["mixes"]}
                 return self._json({"overview": ov, "details": details})
             if path == "/api/runs":
