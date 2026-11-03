@@ -40,6 +40,8 @@ DEFAULT_CONFIG = {
     "headless": True,
     "browser_channel": "msedge",
     "fetch_mix_total": True,
+    "account_discovery_pages": 4,
+    "account_discovery_mix_limit": 5,
     "output_dir": "",              # 空 = 程序目录下的 output（便于整机拷贝）
     "port": 8765,
     # 播放量分级阈值（可在设置页改）
