@@ -238,8 +238,9 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
                     stat["accounts_scanned"] += 1
                     stat["ok"] += 1
                     stat["discovered_videos"] += len(posts)
-                    stat["standalone_videos"] += sum(1 for p in posts if not p.get("mix_id"))
-                    log(f"账号「{name}」发现 {len(posts)} 条公开作品，其中 {stat['standalone_videos']} 条累计为非合集作品")
+                    standalone_count = sum(1 for p in posts if not p.get("mix_id"))
+                    stat["standalone_videos"] += standalone_count
+                    log(f"账号「{name}」发现 {len(posts)} 条公开作品，其中 {standalone_count} 条为非合集作品")
                     # 对新发现的合集，进入已验证的 mix/aweme 采集路径获取真实分集播放量。
                     limit = max(0, int(cfg.get("account_discovery_mix_limit", 5) or 0))
                     candidates = {}
@@ -267,6 +268,7 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
                     if _browser_gone(exc):
                         _interrupt("浏览器窗口已被关闭")
                         break
+                    stat["failed"] += 1
                     store.x("UPDATE tracked_accounts SET last_error=? WHERE sec_uid=?", (str(exc)[:300], sec_uid))
                     log(f"账号「{name}」作品发现失败：{str(exc)[:160]}")
                 if should_stop():
