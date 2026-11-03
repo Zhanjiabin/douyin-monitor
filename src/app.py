@@ -184,6 +184,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"items": intelligence.tracked_account_summary()})
             if path == "/api/intel/discovered-videos":
                 return self._json({"items": intelligence.discovered_videos()})
+            if path.startswith("/api/intel/video-history/"):
+                aweme_id = path.rsplit("/", 1)[-1]
+                return self._json({"items": intelligence.video_history(aweme_id)})
             if path == "/api/intel/videos":
                 return self._json({"items": intelligence.videos()})
             if path == "/api/intel/accounts":
