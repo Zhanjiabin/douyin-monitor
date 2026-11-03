@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>抖音合集播放量监控</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <h1>抖音合集播放量监控</h1>
+  <div class="status">
+    <span><i class="dot" id="dot"></i><span id="runlabel">就绪</span></span>
+    <span id="nextrun"></span>
+  </div>
+</div>
+<div class="sub">本地运行 · 仅监听 127.0.0.1 · 不连接任何外部服务</div>
+
+<div class="tabs">
+  <div class="tab active" data-p="p1">清单</div>
+  <div class="tab" data-p="p2">抓取</div>
+  <div class="tab" data-p="p3">结果</div>
+  <div class="tab" data-p="p4">设置</div>
+</div>
+
+<!-- ============ 清单 ============ -->
+<div class="page active" id="p1">
+  <div class="panel">
+    <h2>批量导入 <span>一行一条，支持短链 / 长链 / 分享文案，自动去重</span></h2>
+    <textarea id="paste" placeholder="https://v.douyin.com/zph1gLvkl9w/
+https://v.douyin.com/xxxxxxx/
+https://www.douyin.com/video/7693829499401653513"></textarea>
+    <div class="btnrow">
+      <button class="primary" id="btnImport">导入到清单</button>
+      <input type="text" id="noteInput" placeholder="备注（可选，如：账号名）" style="width:220px">
+      <button class="ghost" id="btnReloadList">刷新</button>
+    </div>
+  </div>
+
+  <div class="stats" id="watchStats"></div>
+
+  <div class="panel">
+    <h2>视频清单</h2>
+    <div id="watchTable"></div>
+  </div>
+</div>
+
+<!-- ============ 抓取 ============ -->
+<div class="page" id="p2">
+  <div class="panel">
+    <h2>手动抓取 <span>点一下立即开始，不用等定时</span></h2>
+    <div class="btnrow">
+      <button class="primary big" id="btnRun">立即抓取</button>
+      <button class="big ghost" id="btnStop" disabled>停止</button>
+    </div>
+    <div class="progress"><i id="bar"></i></div>
+    <div class="progress-txt"><span id="progressTxt">未开始</span><span id="elapsedTxt"></span></div>
+  </div>
+
+  <div class="panel">
+    <h2>运行日志</h2>
+    <div class="log" id="logBox"></div>
+  </div>
+</div>
+
+<!-- ============ 结果 ============ -->
+<div class="page" id="p3">
+  <div class="stats" id="resultStats"></div>
+
+  <div class="panel">
+    <h2>合集总览 <span id="resultDate"></span></h2>
+    <div class="sortbar">
+      <span class="hint">排序</span>
+      <select id="sortSelect">
+        <option value="play_desc">播放量 从高到低</option>
+        <option value="play_asc">播放量 从低到高</option>
+        <option value="date_desc">发布日期 最新在前</option>
+        <option value="date_asc">发布日期 最早在前</option>
+      </select>
+      <span class="legend" id="levelLegend"></span>
+    </div>
+    <div id="mixTable"></div>
+  </div>
+
+  <div class="panel">
+    <h2>分集明细 <span>点击展开</span></h2>
+    <div id="epBlocks"></div>
+  </div>
+
+  <div class="btnrow">
+    <button class="primary" id="btnExport">导出 Excel 日报</button>
+    <button id="btnDash">生成看板</button>
+    <button class="ghost" id="btnOpenDir">打开输出目录</button>
+  </div>
+</div>
+
+<!-- ============ 设置 ============ -->
+<div class="page" id="p4">
+  <div class="panel">
+    <h2>定时设置 <span>改完点保存即生效，不用重启</span></h2>
+    <div class="setting-row">
+      <div class="label">每日运行时间点</div>
+      <div class="chips" id="timeChips"></div>
+    </div>
+    <div class="setting-row">
+      <div class="label">添加时间点</div>
+      <div class="chips">
+        <input type="time" id="newTime" value="08:30">
+        <button class="ghost" id="btnAddTime">+ 添加</button>
+        <span class="hint">留空 = 只手动抓取（到「抓取」页点按钮）</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div class="label">错过自动补跑</div>
+      <div><input type="checkbox" id="cfgCatchup">
+        <span class="hint">勾选后（<b>推荐</b>）：如果开机时间晚于设定时间点、或电脑在设定时间点
+        处于睡眠，只要今天还没采到数据，程序启动后会自动补跑一次</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>抓取参数</h2>
+    <div class="setting-row">
+      <div class="label">链接间隔</div>
+      <div><input type="text" id="cfgInterval" style="width:70px"> <span class="hint">秒，建议 3～8 秒。每条实际会在此值上再加 0～3 秒随机停顿（防风控），填 5 实际约 5～8 秒</span></div>
+    </div>
+    <div class="setting-row">
+      <div class="label">失败重试次数</div>
+      <div><input type="text" id="cfgRetry" style="width:70px"></div>
+    </div>
+    <div class="setting-row">
+      <div class="label">浏览器内核</div>
+      <div><input type="text" id="cfgChannel" style="width:180px"> <span class="hint">默认 msedge（系统自带 Edge）</span></div>
+    </div>
+    <div class="setting-row">
+      <div class="label">显示浏览器窗口</div>
+      <div><input type="checkbox" id="cfgHeadless">
+        <span class="hint">勾选 = 后台静默运行（<b>推荐</b>）。取消勾选会弹出可见的浏览器窗口，
+        用于排查问题；<span style="color:#e0b45c">抓取过程中请不要关闭那个窗口，否则本次任务会中断</span></span></div>
+    </div>
+    <div class="setting-row">
+      <div class="label">采集合集官方总量</div>
+      <div><input type="checkbox" id="cfgMixTotal"> <span class="hint">额外打开作者主页取官方口径播放量，用于校验</span></div>
+    </div>
+    <div class="setting-row">
+      <div class="label">输出目录</div>
+      <div><input type="text" id="cfgOutdir" style="width:380px">
+        <div class="hint" id="cfgOutdirHint" style="margin-top:4px"></div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>播放量分级 <span>决定结果页的高亮颜色，改完点保存立即生效</span></h2>
+    <div class="setting-row">
+      <div class="label">达标线</div>
+      <div><input type="text" id="cfgLvSuccess" style="width:120px">
+        <span class="hint">达到即算「测出效果」，行首显示蓝色条 + 「达标」徽章。默认 20000（2 万）</span></div>
+    </div>
+    <div class="setting-row">
+      <div class="label">优秀线</div>
+      <div><input type="text" id="cfgLvHigh" style="width:120px">
+        <span class="hint">行首橙色条。默认 500000（50 万）</span></div>
+    </div>
+    <div class="setting-row">
+      <div class="label">爆款线</div>
+      <div><input type="text" id="cfgLvTop" style="width:120px">
+        <span class="hint">行首红色条。默认 1000000（100 万）</span></div>
+    </div>
+  </div>
+
+  <div class="btnrow">
+    <button class="primary" id="btnSaveCfg">保存设置</button>
+    <button class="ghost" id="btnResetCfg">恢复默认</button>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <h2>最近运行记录</h2>
+    <div id="runsTable"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/app.js"></script>
+</body>
+</html>
