@@ -12,7 +12,16 @@ def videos():
         p=prev[0] if prev else {}
         for k in ("play_count","digg_count","comment_count","share_count","collect_count"):
             r[k.replace("_count","_delta")]=r.get(k)-p.get(k) if r.get(k) is not None and p.get(k) is not None else None
-    return rows
+    by_id={r["aweme_id"]:r for r in rows}
+    for v in discovered_videos():
+        current=by_id.get(v["aweme_id"],{})
+        merged={**v,**current}
+        if current.get("play_count") is None and v.get("play_count") is not None:
+            merged["play_count"]=v["play_count"]
+        merged["delta"]=current.get("delta",v.get("delta"))
+        merged["metric_status"]=current.get("metric_status") or v.get("snapshot_status") or v.get("metric_status")
+        by_id[v["aweme_id"]]=merged
+    return sorted(by_id.values(),key=lambda x:(x.get("play_count") or 0),reverse=True)
 
 def accounts():
     rows=store.q("SELECT m.author_name,m.mix_id,m.episode_count,s.play_vv,s.fetch_date FROM mixes m JOIN mix_snapshots s ON s.mix_id=m.mix_id WHERE s.fetch_date=(SELECT MAX(s2.fetch_date) FROM mix_snapshots s2 WHERE s2.mix_id=m.mix_id)")
