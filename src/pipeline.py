@@ -241,25 +241,30 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
                     standalone_count = sum(1 for p in posts if not p.get("mix_id"))
                     stat["standalone_videos"] += standalone_count
                     log(f"账号「{name}」发现 {len(posts)} 条公开作品，其中 {standalone_count} 条为非合集作品")
-                    # 对新发现的合集，进入已验证的 mix/aweme 采集路径获取真实分集播放量。
+                    # 新作品所属合集进入队列；同一合集只有出现更新作品才再次补采。
                     limit = max(0, int(cfg.get("account_discovery_mix_limit", 5) or 0))
                     candidates = {}
                     for post in posts:
                         mid = post.get("mix_id")
-                        if mid and mid not in mix_data and mid not in candidates:
-                            candidates[mid] = post["aweme_id"]
-                    for mid, representative in list(candidates.items())[:limit]:
+                        if not mid or mid in candidates:
+                            continue
+                        latest_ct = max((int(x.get("create_time") or 0) for x in posts if x.get("mix_id")==mid), default=0)
+                        if intelligence.account_mix_needs_scan(sec_uid, mid, latest_ct):
+                            candidates[mid] = (post["aweme_id"], latest_ct)
+                    for mid, pair in list(candidates.items())[:limit]:
                         if should_stop():
                             _interrupt("收到停止指令")
                             break
+                        representative, latest_ct = pair
                         try:
                             result = col.collect_video(representative)
                             if result.get("mix_id") and result.get("episodes"):
                                 mix_data[result["mix_id"]] = result
                                 _persist_mix(result["mix_id"], result, fd)
-                                log(f"  新发现合集「{result.get('mix_name')}」已补采 {len(result.get('episodes') or [])} 集")
+                                intelligence.mark_account_mix_scanned(sec_uid, mid, latest_ct)
+                                log(f"  合集「{result.get('mix_name')}」已更新 {len(result.get('episodes') or [])} 集")
                         except Exception as exc:
-                            log(f"  新发现合集采集失败：{str(exc)[:120]}")
+                            log(f"  合集补采失败：{str(exc)[:120]}")
                         try:
                             col.sleep_between()
                         except Exception:
