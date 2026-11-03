@@ -3,6 +3,7 @@ import store
 
 def init():
     store.x("CREATE TABLE IF NOT EXISTS intel_collections (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, keywords TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)")
+    store.x("CREATE TABLE IF NOT EXISTS intel_collection_mix (collection_id INTEGER NOT NULL, mix_id TEXT NOT NULL, PRIMARY KEY(collection_id,mix_id))")
 
 def videos():
     rows = store.q("SELECT v.aweme_id,v.mix_id,v.episode_no,v.title,v.play_count,v.digg_count,v.comment_count,v.share_count,v.collect_count,v.fetch_date,m.mix_name,m.author_name FROM video_snapshots v LEFT JOIN mixes m ON m.mix_id=v.mix_id WHERE v.fetch_date=(SELECT MAX(v2.fetch_date) FROM video_snapshots v2 WHERE v2.aweme_id=v.aweme_id) ORDER BY COALESCE(v.play_count,0) DESC")
