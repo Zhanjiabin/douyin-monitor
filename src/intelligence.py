@@ -66,7 +66,7 @@ def ai_summary(niche, stage, content_format, frequency):
     model=os.environ.get("OPENAI_MODEL","gpt-4o-mini")
     sample=videos()[:30]
     payload={"niche":niche,"stage":stage,"format":content_format,"weekly_posts":frequency,
-      "sample":[{"title":v.get("title"),"plays":v.get("play_count"),"play_delta":v.get("delta"),
+      "sample":[{"title":v.get("title"),"plays":v.get("play_count"),"play_delta":v.get("play_delta"),
       "likes":v.get("digg_count"),"comments":v.get("comment_count"),"author":v.get("author_name"),
       "mix":v.get("mix_name")} for v in sample]}
     prompt=("你是短视频增长分析师。只根据提供的样本提出可验证的运营假设。"
