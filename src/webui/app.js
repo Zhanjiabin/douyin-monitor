@@ -52,3 +52,19 @@ if(addGroupButton)addGroupButton.onclick=async()=>{
 };
 
 document.addEventListener('click',e=>{const n=e.target.closest('[data-page]');if(n&&n.dataset.page==='mixes')loadGroups()});
+
+const addAccountButton=$('#addAccount');
+if(addAccountButton)addAccountButton.onclick=async()=>{
+ const url=$('#accountUrl').value.trim(),note=$('#accountNote').value.trim();
+ if(!url)return toast('请粘贴抖音账号主页链接');
+ try{await api('/api/intel/account',{url,note});$('#accountUrl').value='';$('#accountNote').value='';toast('账号已加入监控；下次采集时自动发现公开作品');await refresh()}
+ catch(e){toast(e.message)}
+};
+document.addEventListener('click',async e=>{
+ const toggle=e.target.closest('[data-account-toggle]');
+ const remove=e.target.closest('[data-account-delete]');
+ try{
+  if(toggle){await api('/api/intel/account-toggle',{sec_uid:toggle.dataset.accountToggle,enabled:toggle.dataset.enabled==='true'});await refresh()}
+  if(remove&&confirm('删除账号监控？已采集的历史作品快照仍保留。')){await api('/api/intel/account-delete',{sec_uid:remove.dataset.accountDelete});await refresh()}
+ }catch(err){toast(err.message)}
+});
