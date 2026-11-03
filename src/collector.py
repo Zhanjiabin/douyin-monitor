@@ -241,8 +241,11 @@ class DouyinCollector:
                 self._page.evaluate(JS_CLICK_TAB, "作品")
             except Exception:
                 pass
-        self._wait_cap(EP_AWEME_POST, timeout=20)
-        for _ in range(max(0, int(max_pages)-1)):
+        max_pages = min(10, max(1, int(max_pages)))
+        captured = self._wait_cap(EP_AWEME_POST, timeout=20)
+        if not captured:
+            raise RuntimeError("未捕获到作者作品列表接口，可能页面受限或抖音页面结构已变化")
+        for _ in range(max(0, max_pages-1)):
             responses=self._cap.get(EP_AWEME_POST) or []
             if not responses or not responses[-1].get("has_more"):
                 break
