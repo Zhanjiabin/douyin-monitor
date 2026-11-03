@@ -99,7 +99,8 @@ def add_account(profile_url, note=""):
     url=(profile_url or "").strip()
     match=re.search(r"/user/([^/?#]+)",url)
     sec_uid=match.group(1) if match else (url if re.fullmatch(r"[A-Za-z0-9_=-]{12,}",url) else "")
-    if not sec_uid: raise ValueError("请输入有效的抖音账号主页链接")
+    if not sec_uid or not re.fullmatch(r"[A-Za-z0-9_=-]{12,}",sec_uid):
+        raise ValueError("请输入有效的抖音账号主页链接")
     canonical="https://www.douyin.com/user/"+sec_uid
     init_account_tables()
     store.x("INSERT INTO tracked_accounts(sec_uid,profile_url,note,created_at) VALUES(?,?,?,?) ON CONFLICT(sec_uid) DO UPDATE SET profile_url=excluded.profile_url,note=CASE WHEN excluded.note='' THEN tracked_accounts.note ELSE excluded.note END",
