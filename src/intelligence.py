@@ -90,6 +90,7 @@ def init_account_tables():
     store.x("CREATE INDEX IF NOT EXISTS idx_tav_sec_uid ON tracked_account_videos(sec_uid, create_time)")
     store.x("CREATE TABLE IF NOT EXISTS account_video_snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, aweme_id TEXT NOT NULL, fetch_date TEXT NOT NULL, fetched_at TEXT NOT NULL, play_count INTEGER, digg_count INTEGER, comment_count INTEGER, share_count INTEGER, collect_count INTEGER, metric_status TEXT NOT NULL, source TEXT NOT NULL, UNIQUE(aweme_id,fetch_date))")
     store.x("CREATE INDEX IF NOT EXISTS idx_avs_aweme ON account_video_snapshots(aweme_id,fetch_date)")
+    store.x("CREATE TABLE IF NOT EXISTS tracked_account_mix_scans (sec_uid TEXT NOT NULL, mix_id TEXT NOT NULL, last_create_time INTEGER, scanned_at TEXT, PRIMARY KEY(sec_uid,mix_id))")
 
 def add_account(profile_url, note=""):
     import re
@@ -190,3 +191,13 @@ def video_history(aweme_id):
     by={x["fetch_date"]:x for x in account}
     for x in mix: by[x["fetch_date"]]=x
     return [by[k] for k in sorted(by)]
+
+def account_mix_needs_scan(sec_uid, mix_id, latest_create_time):
+    init_account_tables()
+    rows=store.q("SELECT last_create_time FROM tracked_account_mix_scans WHERE sec_uid=? AND mix_id=?",(sec_uid,mix_id))
+    if not rows: return True
+    return int(latest_create_time or 0)>int(rows[0].get("last_create_time") or 0)
+
+def mark_account_mix_scanned(sec_uid, mix_id, latest_create_time):
+    init_account_tables()
+    store.x("INSERT INTO tracked_account_mix_scans(sec_uid,mix_id,last_create_time,scanned_at) VALUES(?,?,?,?) ON CONFLICT(sec_uid,mix_id) DO UPDATE SET last_create_time=excluded.last_create_time,scanned_at=excluded.scanned_at",(sec_uid,mix_id,int(latest_create_time or 0),store.now_str()))
