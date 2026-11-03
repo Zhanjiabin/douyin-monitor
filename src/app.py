@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import analyze
+import intelligence
 import store
 from config import (WEBUI_DIR, ensure_dirs, load_config, resolve_output_dir,
                     save_config)
@@ -177,6 +178,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"runs": analyze.recent_runs(15)})
             if path == "/api/health":
                 return self._json(analyze.health())
+            if path == "/api/intel/videos":
+                return self._json({"items": intelligence.videos()})
+            if path == "/api/intel/accounts":
+                return self._json({"items": intelligence.accounts()})
+            if path == "/api/intel/collections":
+                return self._json({"items": intelligence.collections()})
+            if path == "/api/intel/alerts":
+                return self._json({"items": intelligence.alerts()})
             return self.send_error(404)
         except Exception as e:
             return self._json({"error": str(e)}, 500)
