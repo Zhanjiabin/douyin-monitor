@@ -180,6 +180,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"runs": analyze.recent_runs(15)})
             if path == "/api/health":
                 return self._json(analyze.health())
+            if path == "/api/intel/tracked-accounts":
+                return self._json({"items": intelligence.tracked_account_summary()})
+            if path == "/api/intel/discovered-videos":
+                return self._json({"items": intelligence.discovered_videos()})
             if path == "/api/intel/videos":
                 return self._json({"items": intelligence.videos()})
             if path == "/api/intel/accounts":
@@ -196,6 +200,15 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         data = self._body()
         try:
+            if path == "/api/intel/account":
+                items = intelligence.add_account(data.get("url", ""), data.get("note", ""))
+                return self._json({"ok": True, "items": items})
+            if path == "/api/intel/account-toggle":
+                items = intelligence.toggle_tracked_account(data.get("sec_uid", ""), bool(data.get("enabled")))
+                return self._json({"ok": True, "items": items})
+            if path == "/api/intel/account-delete":
+                items = intelligence.delete_tracked_account(data.get("sec_uid", ""))
+                return self._json({"ok": True, "items": items})
             if path == "/api/intel/group":
                 return self._json({"ok": True, "items": intelligence.create_collection(data.get("name"), data.get("keywords", ""))})
             if path == "/api/intel/ai-summary":
