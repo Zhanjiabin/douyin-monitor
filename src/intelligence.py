@@ -169,9 +169,14 @@ def discovered_videos():
     init_account_tables()
     rows=store.q("SELECT v.*,a.nickname,a.profile_url,s.play_count,s.digg_count,s.comment_count,s.share_count,s.collect_count,s.metric_status snapshot_status,s.fetch_date FROM tracked_account_videos v LEFT JOIN tracked_accounts a ON a.sec_uid=v.sec_uid LEFT JOIN account_video_snapshots s ON s.aweme_id=v.aweme_id AND s.fetch_date=(SELECT MAX(s2.fetch_date) FROM account_video_snapshots s2 WHERE s2.aweme_id=v.aweme_id) ORDER BY COALESCE(v.create_time,0) DESC")
     for r in rows:
-        mix=store.q("SELECT play_count,digg_count,comment_count,share_count,collect_count FROM video_snapshots WHERE aweme_id=? AND mix_id IS NOT NULL AND play_count IS NOT NULL ORDER BY fetch_date DESC LIMIT 1",(r["aweme_id"],))
+        mix=store.q("SELECT play_count,digg_count,comment_count,share_count,collect_count,fetch_date FROM video_snapshots WHERE aweme_id=? AND mix_id IS NOT NULL AND play_count IS NOT NULL ORDER BY fetch_date DESC LIMIT 1",(r["aweme_id"],))
         if mix:
             for k in ("play_count","digg_count","comment_count","share_count","collect_count"):
                 if mix[0].get(k) is not None:r[k]=mix[0][k]
             r["snapshot_status"]="public_mix_metric"
+            prev=store.q("SELECT play_count FROM video_snapshots WHERE aweme_id=? AND mix_id IS NOT NULL AND fetch_date<? ORDER BY fetch_date DESC LIMIT 1",(r["aweme_id"],mix[0]["fetch_date"]))
+        else:
+            prev=store.q("SELECT play_count FROM account_video_snapshots WHERE aweme_id=? AND fetch_date<? ORDER BY fetch_date DESC LIMIT 1",(r["aweme_id"],r.get("fetch_date") or ""))
+        r["delta"]=(r.get("play_count")-prev[0]["play_count"]) if prev and r.get("play_count") is not None and prev[0].get("play_count") is not None else None
     return rows
+
