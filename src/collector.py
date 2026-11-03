@@ -21,6 +21,7 @@ from config import BROWSER_PROFILE, USER_AGENT
 EP_DETAIL = "aweme_detail_"
 EP_MIX_AWEME = "mix_aweme_"
 EP_MIX_LIST = "mix_list_"
+EP_AWEME_POST = "aweme_post_"
 
 JS_KILL_OVERLAY = """
 () => {
@@ -110,7 +111,7 @@ class DouyinCollector:
         if "/aweme/v1/web/" not in url:
             return
         key = url.split("?")[0].rsplit("/web/", 1)[-1].replace("/", "_")
-        if key not in (EP_DETAIL, EP_MIX_AWEME, EP_MIX_LIST):
+        if key not in (EP_DETAIL, EP_MIX_AWEME, EP_MIX_LIST, EP_AWEME_POST):
             return
         try:
             data = resp.json()
@@ -223,6 +224,65 @@ class DouyinCollector:
         for idx, it in enumerate(items, 1):
             it["episode_no"] = idx
         return items
+
+    # ---------- 采集：作者主页公开作品列表 ----------
+    def collect_author_posts(self, sec_uid, max_pages=4):
+        self._reset_cap()
+        self._page.goto(f"https://www.douyin.com/user/{sec_uid}", wait_until="domcontentloaded", timeout=60000)
+        self._page.wait_for_timeout(5000)
+        try:
+            self._page.evaluate(JS_KILL_OVERLAY)
+        except Exception:
+            pass
+        try:
+            self._page.locator("span:text-is('作品')").first.click(timeout=5000)
+        except Exception:
+            try:
+                self._page.evaluate(JS_CLICK_TAB, "作品")
+            except Exception:
+                pass
+        self._wait_cap(EP_AWEME_POST, timeout=20)
+        for _ in range(max(0, int(max_pages)-1)):
+            responses=self._cap.get(EP_AWEME_POST) or []
+            if not responses or not responses[-1].get("has_more"):
+                break
+            before=sum(len(x.get("aweme_list") or []) for x in responses)
+            self._page.mouse.wheel(0, 2200)
+            self._page.wait_for_timeout(1800)
+            after=sum(len(x.get("aweme_list") or []) for x in (self._cap.get(EP_AWEME_POST) or []))
+            if after<=before:
+                break
+        found={}
+        for response in self._cap.get(EP_AWEME_POST,[]):
+            for item in response.get("aweme_list") or []:
+                aid=str(item.get("aweme_id") or "")
+                if not aid: continue
+                author=item.get("author") or {}
+                stats=item.get("statistics") or {}
+                mix=item.get("mix_info") or {}
+                mix_stats=mix.get("statis") or {}
+                def metric(key):
+                    value=_num(stats.get(key))
+                    return value if value is not None and value>=0 else None
+                found[aid]={
+                    "aweme_id":aid,"title":item.get("desc"),
+                    "create_time":_num(item.get("create_time")),
+                    "sec_uid":author.get("sec_uid") or sec_uid,
+                    "author_name":author.get("nickname"),
+                    "mix_id":str(mix.get("mix_id") or "") or None,
+                    "mix_name":mix.get("mix_name"),
+                    "play_count":metric("play_count"),
+                    "digg_count":metric("digg_count"),
+                    "comment_count":metric("comment_count"),
+                    "share_count":metric("share_count"),
+                    "collect_count":metric("collect_count"),
+                    "mix_play_vv":_num(mix_stats.get("play_vv")),
+                }
+        items=list(found.values())
+        items.sort(key=lambda x:x.get("create_time") or 0,reverse=True)
+        nickname=next((x.get("author_name") for x in items if x.get("author_name")),None)
+        return {"sec_uid":sec_uid,"author_name":nickname,"items":items,
+                "has_more":bool((self._cap.get(EP_AWEME_POST) or [{}])[-1].get("has_more"))}
 
     # ---------- 采集：作者主页 → 各合集官方总播放量 ----------
     def collect_author_mixes(self, sec_uid):
