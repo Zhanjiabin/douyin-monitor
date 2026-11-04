@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix='discovery-browser-') as folder:
             browser=p.chromium.launch(channel='msedge',headless=True)
             page=browser.new_page(viewport={'width':1500,'height':980});page.on('pageerror',lambda e:errors.append(str(e)))
             page.add_init_script("sessionStorage.setItem('gc-discovery-v2',JSON.stringify({works:{applied:{source:'native'},draft:{source:'native'}}}));")
-            page.goto(base+'/discover');page.wait_for_selector('[data-select]')
+            page.goto(base+'/discover/advanced');page.wait_for_selector('[data-select]')
             assert page.locator('#appNavigation a.is-active').inner_text()=='发现'
             assert page.locator('#discoverySource').input_value()=='lowfan'
             assert page.locator('#discoveryCategory').input_value()=='643'
@@ -135,7 +135,7 @@ with tempfile.TemporaryDirectory(prefix='discovery-browser-') as folder:
             page.click('#audienceDialog [data-close]');page.wait_for_selector('#accountDetailDialog[open]')
             page.goto(base+'/settings#connection');page.wait_for_selector('[data-permission]')
             assert not page.locator('[data-permission] input').is_checked()
-            page.set_viewport_size({'width':390,'height':844});page.goto(base+'/discover#hot');page.wait_for_selector('[data-related]')
+            page.set_viewport_size({'width':390,'height':844});page.goto(base+'/discover/advanced#hot');page.wait_for_selector('[data-related]')
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), 'page-level horizontal overflow'
             page.screenshot(path=str(OUT/'mobile.png'),full_page=True)
             browser.close()

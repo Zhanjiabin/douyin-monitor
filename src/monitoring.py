@@ -274,6 +274,8 @@ class MonitorScheduler(threading.Thread):
             try:
                 import discovery
                 discovery.tick()
+                import discovery_hub
+                discovery_hub.tick()
             except Exception:
                 self.log("发现定时更新本轮检查失败；未自动提交请求")
             self._stop_event.wait(15)

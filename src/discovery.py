@@ -24,6 +24,9 @@ LOCK = threading.RLock()
 BILL = '/api/v1/douyin/billboard/'
 INDEX = '/api/v1/douyin/index/'
 SOURCES = {
+    'video_total': ('视频总榜', BILL+'fetch_hot_total_video_list', 'works'),
+    'hot_total': ('热点总榜', BILL+'fetch_hot_total_list', 'hot'),
+    'hot_live': ('抖音实时热榜', '/api/v1/douyin/app/v3/fetch_hot_search_list', 'hot'),
     'native': ('Pro 关键词搜索', '', 'works'),
     'native_hot': ('抖音实时热榜 · Pro', '', 'hot'),
     'lowfan': ('低粉爆款', BILL+'fetch_hot_total_low_fan_list', 'works'),
@@ -106,8 +109,19 @@ def query(data):
     section=SOURCES[source][2]
     if section in {'works','hot'}:
         result.update(keyword=keyword)
-        if source not in {'rising','searches','search'}:result['category']=category
-        if source=='rising':
+        if source not in {'rising','searches','search','hot_total','hot_live'}:result['category']=category
+        if source=='video_total':
+            cats=data.get('categories') or ([category] if category else [])
+            if not isinstance(cats,list) or len(cats)>8 or any(str(c) not in {str(v['value']) for v in categories()} for c in cats):raise ValueError('请选择有效的平台分类，最多 8 个')
+            result['categories']=sorted(set(map(str,cats)))
+        if source=='hot_total':
+            result['date']=str(data.get('date') or now().date().isoformat())
+            result['window']=integer(data.get('window',168),24,168,'热点范围')
+            if result['window'] not in {24,72,168}:raise ValueError('热点范围无效')
+            try:datetime.strptime(result['date'],'%Y-%m-%d')
+            except ValueError:raise ValueError('热点日期无效') from None
+        elif source=='hot_live':pass
+        elif source=='rising':
             result['order']=data.get('order','rank_diff')
             if result['order'] not in {'rank','rank_diff'}:raise ValueError('热点排序无效')
         elif source=='search':
@@ -172,7 +186,7 @@ def api_request(path,params=None,body=None):
 
 def prepare(data):
     init();q=query(data);source=q['source'];section=SOURCES[source][2]
-    pages=integer(data.get('pages',1),1,3,'抓取页数')
+    pages=integer(data.get('pages',1),1,5 if source in {'video_total','hot_total'} else 3,'抓取页数')
     start=integer(data.get('page_start',1),1,50,'起始页数')
     if source=='monitor':
         import native_discovery
@@ -191,7 +205,7 @@ def prepare(data):
                 'calls':0,'paid':False,'provider':'MediaCrawlerPro','limit':q.get('limit',50),
                 'allowed':not reason,'reason':reason,'title':title,
                 'endpoints':[],'base_snapshot':None}
-    if section not in {'works','hot'} or source=='search':
+    if section not in {'works','hot'} or source in {'search','hot_live'}:
         if pages!=1 or start!=1:raise ValueError('该查询只支持单次抓取')
     previous=latest(q) if start>1 else None
     if start>1 and (not previous or previous.get('next_page')!=start):raise ValueError('缓存分页已变化，请重新搜索并预览')
@@ -200,12 +214,18 @@ def prepare(data):
         for page in range(start,start+pages):
             if source=='search':
                 requests.append(api_request(SOURCES[source][1],body={'query':q['keyword'],'date_type':q['days'],'duration_type':q['duration'],'label_type':0}))
+            elif source=='hot_total':
+                start_date=datetime.fromisoformat(q['date'])-timedelta(days=q['window']//24-1)
+                requests.append(api_request(SOURCES[source][1],{'page':page,'page_size':20,'type':'range','start_date':start_date.strftime('%Y%m%d'),'end_date':q['date'].replace('-',''),'sentence_tag':'','keyword':q['keyword']}))
+            elif source=='hot_live':requests.append(api_request(SOURCES[source][1]))
             elif source=='rising':
                 requests.append(api_request(SOURCES[source][1],{'page':page,'page_size':20,'order':q['order'],'keyword':q['keyword']}))
             elif source=='searches':
                 requests.append(api_request(SOURCES[source][1],body={'page_num':page,'page_size':20,'date_window':q['window'],'keyword':q['keyword']}))
             else:
-                requests.append(api_request(SOURCES[source][1],body={'page':page,'page_size':20,'date_window':q['window'],'keyword':q['keyword'],'tags':[{'value':int(q['category'])}] if q['category'] else []}))
+                body={'page':page,'page_size':20,'date_window':q['window'],'keyword':q['keyword'],'tags':[{'value':int(c)} for c in q.get('categories',[])] if source=='video_total' else [{'value':int(q['category'])}] if q['category'] else []}
+                if source=='video_total':body['sub_type']=1001
+                requests.append(api_request(SOURCES[source][1],body=body))
     elif source=='keyword':
         if not settings()['allow_keyword_trends']:reason='关键词趋势专用接口尚未许可，请在设置开启；每次仅查询 1 个词'
         requests.append(api_request(SOURCES[source][1],{'keyword_list':q['keyword'],'start_date':q['start_date'].replace('-',''),'end_date':q['end_date'].replace('-',''),'app_name':'aweme','region':''}))
@@ -304,6 +324,13 @@ def parse_works(node,source):
             'digg_count':number(value(r,'like_cnt','likes','digg_count')),
             'comment_count':number(value(r,'comment_cnt','comments','comment_count')),
             'share_count':number(value(r,'share_cnt','shares','share_count')),
+            'collect_count':number(value(r,'collect_cnt','collect_count','favorite_count')),
+            'download_count':number(value(r,'download_cnt','download_count')),
+            'follow_count':number(value(r,'follow_cnt','fans_incr','follow_count')),
+            'rank':number(value(r,'rank','real_rank','ranking')),
+            'rank_change':r.get('rank_diff'),
+            'category':str(value(r,'tag_name','category_name','item_tag_name') or ''),
+            'provider_data':r,
             'index':number(value(r,'index','score')),
             'completion_rate':number(value(r,'play_over_rate','finish_rate')),
             'like_rate':number(r.get('like_rate')),'follow_rate':number(r.get('follow_rate')),
@@ -312,17 +339,24 @@ def parse_works(node,source):
 
 
 def parse_hot(node,source):
-    rows=node if isinstance(node,list) else node.get('objs',node.get('items',[])) if isinstance(node,dict) else []
+    rows=node if isinstance(node,list) else node.get('objs',node.get('word_list',node.get('items',[]))) if isinstance(node,dict) else []
     result=[]
     for index,r in enumerate(rows):
         if not isinstance(r,dict):continue
         word=value(r,'sentence','challenge_name','key_word','topic_name','keyword','word','name','topic','search_word')
         if not word:continue
         result.append({'id':str(value(r,'sentence_id','challenge_id','topic_id','id') or word),'title':str(word),
-          'rank':number(value(r,'rank','real_rank','origin_rank','index')) or index+1,'rank_change':r.get('rank_diff'),
+          'rank':number(value(r,'real_rank','origin_rank','index','rank')) or None,'rank_change':r.get('rank_diff'),
           'heat':number(value(r,'hot_score','search_score','hot_value','search_count','score','heat')),
           'topic_plays':number(r.get('play_cnt')),'publish_count':number(r.get('publish_cnt')),
           'category':str(value(r,'sentence_tag_name','tag_name') or ''),'trend':r.get('trends') or [],'source':source})
+        result[-1].update(published_at=published(value(r,'create_at','event_time')),publish_count=number(value(r,'publish_cnt','video_count','discuss_video_count')),allow_publish=r.get('allow_publish'))
+        if source=='hot_live' and r.get('hotlist_param'):
+            try:
+                rank=number(json.loads(r['hotlist_param']).get('rank'))
+                if rank is not None:result[-1]['rank']=rank
+            except (ValueError,TypeError,AttributeError):pass
+        result[-1]['provider_data']=r
     return result
 
 
@@ -377,7 +411,7 @@ def execute(request,progress=lambda _:None,cancelled=lambda:False):
     p=prepare(data)
     if not p['allowed'] or request.get('confirmed') is not True or request.get('fingerprint')!=p['fingerprint']:
         raise ValueError(p['reason'] or '条件、授权或缓存已变化，请重新预览')
-    q=p['query'];items=[];series=[];receipts=[];errors=[];raw=[];attempted=0;total=None;provider_updated=None
+    q=p['query'];items=[];series=[];receipts=[];errors=[];raw=[];attempted=0;total=None;provider_updated=None;exhausted=False
     if p.get('cached_monitor'):
         import native_discovery
         items=native_discovery.monitor(native_discovery.verified(q['aweme_ids']))
@@ -392,6 +426,10 @@ def execute(request,progress=lambda _:None,cancelled=lambda:False):
         progress({'done':len(items),'total':q.get('limit',len(items)),'count':len(items)})
     for req in p['requests']:
         if cancelled():break
+        if request.get('hub_revision'):
+            import discovery_hub
+            if not discovery_hub.job_allowed(request):
+                errors.append({'error':'自动采集已暂停或修改，停止后续请求'});break
         if request.get('discovery_rule') and not rule_allowed(request):
             errors.append({'error':'发现计划已暂停或修改，未继续请求'});break
         # Revalidate the special permission before every possible paid request.
@@ -422,15 +460,22 @@ def execute(request,progress=lambda _:None,cancelled=lambda:False):
                     douk.import_rows([detail],source='tikhub_app_v3')
                     if not existing:intelligence.set_account_role(uid,'peer')
                     items.append({'aweme_id':aid,'sec_uid':uid,'title':detail.get('desc',''),'account_name':detail['author'].get('nickname','')})
-                else:items.extend(parsed['items'])
+                else:
+                    for pos,item in enumerate(parsed['items']):
+                        if item.get('rank') is None and q['source'] not in {'search','monitor'}:
+                            item['rank']=(p['page_start']+len(raw)-1)*20+pos+1
+                            item['rank_source']='response_order'
+                    items.extend(parsed['items'])
                 label='发布趋势' if req['operation_id'].startswith('fetch_content_publish_trend') else '消费趋势' if q['source']=='industry' else ''
                 series.extend([{**s,'name':label+s['name']} for s in parsed['series']])
                 raw.append({'endpoint':tikhub.operation(req['operation_id'])['path'],'data':parsed['raw_data']})
                 total=parsed.get('provider_total',total);provider_updated=parsed.get('provider_updated_at',provider_updated)
+                if SOURCES[q['source']][2] in {'works','hot'} and q['source'] not in {'search','monitor','hot_live'}:
+                    exhausted=not parsed['items'] or (total is not None and p['page_start']+len(raw)-1>=math.ceil(total/20))
             except (ValueError,TypeError,KeyError) as exc:
                 errors.append({'error':str(exc)});break
         progress({'done':attempted,'total':p['calls'],'count':len(items)})
-        if errors:break
+        if errors or exhausted:break
     timestamp=now().isoformat()
     for item in items:item['fetched_at']=timestamp
     if SOURCES[q['source']][2]=='works' and items:
@@ -452,14 +497,17 @@ def execute(request,progress=lambda _:None,cancelled=lambda:False):
     was_cancelled=cancelled()
     if was_cancelled:errors.append({'error':'任务已取消；已完成的请求仍已保存'})
     next_page=None
-    if SOURCES[q['source']][2] in {'works','hot'} and q['source'] not in {'search','native','native_hot'} and raw and not errors:
+    if SOURCES[q['source']][2] in {'works','hot'} and q['source'] not in {'search','native','native_hot','hot_live'} and raw and not errors and not exhausted:
         next_page=p['page_start']+len(raw)
         if (total is not None and next_page>math.ceil(total/20)) or not fresh_count:next_page=None
     payload={'items':items,'series':series,'raw':raw,'receipts':receipts,'errors':errors,'next_page':next_page,
              'provider_total':total,'provider_updated_at':provider_updated,'attempted':attempted,'source_title':p['title']}
     ok=bool(raw or (q['source']=='monitor' and items))
     if ok:
-        store.x('INSERT INTO discovery_snapshots VALUES(?,?,?,?,?,?,?,?)',(uuid.uuid4().hex,key(q),q['source'],json.dumps(q,ensure_ascii=False),json.dumps(payload,ensure_ascii=False),timestamp,'partial' if errors else 'completed',request.get('job_id','')))
+        snapshot_id=uuid.uuid4().hex
+        store.x('INSERT INTO discovery_snapshots VALUES(?,?,?,?,?,?,?,?)',(snapshot_id,key(q),q['source'],json.dumps(q,ensure_ascii=False),json.dumps(payload,ensure_ascii=False),timestamp,'partial' if errors else 'completed',request.get('job_id','')))
+        import discovery_hub
+        discovery_hub.ingest(snapshot_id)
     saved=f'{len(series)} 组指标' if series else f'{len(items)} 条结果'
     return {'ok':ok,'data':items,'errors':errors,'receipts':receipts,'attempted':attempted,'requested':p['calls'],
             'query':q,'cancelled':was_cancelled,'message':('已取消；已完成的请求仍已保存' if was_cancelled else

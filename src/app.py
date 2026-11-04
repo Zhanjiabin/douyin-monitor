@@ -227,7 +227,37 @@ class Handler(BaseHTTPRequestHandler):
             if path in ("/workbench.js", "/workbench.css", "/monitoring-settings.js", "/screen-refresh.js", "/product.js", "/product.css"):
                 return self._file(path[1:])
             if path == "/discover":
+                return self._file("discovery-hub.html")
+            if path == "/discover/advanced":
                 return self._file("discovery.html")
+            if path in ("/discovery-hub.js", "/discovery-hub.css"):
+                return self._file(path[1:])
+            if path.startswith('/api/discovery/hub/'):
+                import discovery_hub as hub
+                args = parse_qs(urlparse(self.path).query)
+                try:
+                    query = json.loads(args.get('query', ['{}'])[0])
+                    if path.endswith('/library'):
+                        return self._json(hub.library(query))
+                    if path.endswith('/history'):
+                        return self._json(hub.history(args.get('kind', ['works'])[0], args.get('id', [''])[0]))
+                    if path.endswith('/automation'):
+                        return self._json(hub.automation())
+                    if path.endswith('/run'):
+                        return self._json(hub.run_state(args.get('id', [''])[0]))
+                    if path.endswith('/reports'):
+                        return self._json(hub.reports(args.get('id', [None])[0]))
+                    if path.endswith('/export') or path.endswith('/report-export'):
+                        report = path.endswith('/report-export')
+                        body = hub.export_report(args.get('id', [''])[0]) if report else hub.export_library(query)
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'text/html; charset=utf-8' if report else 'text/csv; charset=utf-8')
+                        self.send_header('Content-Disposition', 'attachment; filename="'+('discovery-report.html' if report else 'discovery-library.csv')+'"')
+                        self.send_header('Content-Length', str(len(body)))
+                        self.end_headers()
+                        return self.wfile.write(body)
+                except (ValueError, TypeError) as exc:
+                    return self._json({'error': str(exc)}, 400)
             if path in ("/discovery.js", "/discovery.css", "/audience.js"):
                 return self._file(path[1:])
             if path == "/api/discovery/catalog":
@@ -479,6 +509,16 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/discovery/plan":
                 return self._json(discovery.plan(data))
+            if path.startswith('/api/discovery/hub/'):
+                import discovery_hub as hub
+                if path.endswith('/automation'):
+                    return self._json(hub.save_config(data))
+                if path.endswith('/sync-plan'):
+                    return self._json(hub.sync_plan(data))
+                if path.endswith('/sync'):
+                    return self._json(hub.submit_sync(data), 202)
+                if path.endswith('/generate'):
+                    return self._json(hub.generate_report(data))
             if path == "/api/discovery/submit":
                 return self._json(discovery.submit(data), 202)
             if path == "/api/discovery/settings":
