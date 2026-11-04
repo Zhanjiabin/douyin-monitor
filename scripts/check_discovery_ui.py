@@ -10,11 +10,20 @@ from playwright.sync_api import sync_playwright
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'))
-import app,auth,corpus,discovery as d,douk,intelligence,playback,store,tikhub,media_cache
+import app,auth,corpus,discovery as d,douk,intelligence,playback,store,tikhub,media_cache,native_discovery
 
 OUT=ROOT/'output/discovery-ui';OUT.mkdir(exist_ok=True)
 AID='7703151458754472787';UID='MS4wLjABAAAA_DISCOVERY_BROWSER'
-calls=[];errors=[]
+calls=[];native_calls=[];errors=[]
+
+def native_transport(q,*_):
+    native_calls.append(q['source'])
+    if q['source']=='native_hot':
+        items=[{'id':str(i),'title':f'实时热点 {i+1}','rank':i+1,'heat':10000-i,'rank_change':None,'trend':[],'category':'抖音热榜'} for i in range(10)]
+    else:
+        items=[native_discovery.work({'aweme_id':str(int(AID)+i),'desc':f'AI创意视频 · 第 {i+1} 条 '+('分镜脚本、角色一致性、AI视频教程 #原创动画 #脑洞创意 ' * 8),'create_time':1793500000,
+            'video':{'duration':16000},'author':{'nickname':'AI作者'},'statistics':{'digg_count':12000+i,'collect_count':2000},'discovery_keyword':'AI短片'}) for i in range(45)]
+    return {'items':items,'errors':[],'pages':3}
 def transport(method,url,**kwargs):
     calls.append(url)
     data={'code':0,'data':{'page':{'total':45},'objs':[{'item_id':str(int(AID)+i),'item_title':f'末日生存 · 第 {i+1} 集，暴雨停电后的一次选择','nick_name':'测试作者','fans_cnt':8500,'play_cnt':120000+i*3000,'like_cnt':8000+i,'publish_time':1793500000,'score':10000+i} for i in range(45)]}}
@@ -34,25 +43,38 @@ with tempfile.TemporaryDirectory(prefix='discovery-browser-') as folder:
         for q in [{'source':'lowfan'},{'source':'rising'}]:
             p=d.plan(q);d.execute({'query':p['query'],'confirmed':True,'fingerprint':p['fingerprint']})
     calls.clear()
+    native_ready=patch.object(native_discovery,'ready',return_value='');native_ready.start()
+    with patch.object(native_discovery,'execute',side_effect=native_transport):
+        for q in [{'source':'native'},{'source':'native_hot'}]:
+            plan=d.plan(q);d.execute({'query':plan['query'],'confirmed':True,'fingerprint':plan['fingerprint']})
+    native_calls.clear()
     server=app.LocalHTTPServer(('127.0.0.1',0),app.Handler)
     threading.Thread(target=server.serve_forever,daemon=True).start();base=f'http://127.0.0.1:{server.server_port}'
     try:
-        with patch.object(tikhub.requests,'request',side_effect=transport),sync_playwright() as p:
+        with patch.object(tikhub.requests,'request',side_effect=transport),patch.object(native_discovery,'execute',side_effect=native_transport),sync_playwright() as p:
             browser=p.chromium.launch(channel='msedge',headless=True)
             page=browser.new_page(viewport={'width':1500,'height':980});page.on('pageerror',lambda e:errors.append(str(e)))
             page.goto(base+'/discover');page.wait_for_selector('[data-select]')
             assert page.locator('#appNavigation a.is-active').inner_text()=='发现'
+            assert page.locator('#discoverySource').input_value()=='native'
+            assert 'AI创意视频' in page.locator('#discoveryKeyword').input_value()
             assert not calls
+            assert page.locator('.discover-work strong').first.evaluate('e=>e.getBoundingClientRect().right<=e.closest("td").getBoundingClientRect().right'), 'long title overflows its column'
             page.screenshot(path=str(OUT/'works-desktop.png'),full_page=True)
             page.fill('#discoveryKeyword','重生')
             assert page.locator('[data-select]').count()==20
             page.click('#discoveryFetch')
             assert not page.locator('#discoveryQuote').is_visible()
             assert not calls
-            page.fill('#discoveryKeyword','');page.click('#discoveryFilters button[type=submit]')
+            page.click('#discoveryFilters button[type=reset]')
+            assert 'AI创意视频' in page.locator('#discoveryKeyword').input_value()
+            page.wait_for_function("!document.querySelector('#discoveryFeedback').textContent.includes('条件已修改')")
             page.click('#discoveryFetch');page.wait_for_selector('[data-confirm]')
             assert not calls
-            page.click('#discoveryQuote [data-cancel]')
+            assert '不消耗 TikHub 额度' in page.locator('#discoveryQuote').inner_text()
+            page.click('#discoveryQuote [data-confirm]');page.wait_for_function("document.querySelector('#discoveryQuote strong').textContent==='抓取完成'")
+            assert native_calls==['native'] and not calls
+            page.select_option('#discoverySource','lowfan');page.fill('#discoveryKeyword','');page.click('#discoveryFilters button[type=submit]')
             page.click('#discoveryFetch');page.wait_for_selector('[data-confirm]');page.click('#discoveryQuote [data-confirm]')
             page.wait_for_function("document.querySelector('#discoveryQuote strong').textContent==='抓取完成'")
             assert len(calls)==1,calls
@@ -66,6 +88,8 @@ with tempfile.TemporaryDirectory(prefix='discovery-browser-') as folder:
             page.click('[data-view=hot]');page.wait_for_selector('[data-related]')
             assert page.locator('#appNavigation a.is-active').inner_text()=='发现'
             page.screenshot(path=str(OUT/'hot-desktop.png'),full_page=True)
+            assert page.locator('#discoverySource').input_value()=='native_hot'
+            page.select_option('#discoverySource','rising');page.click('#discoveryFilters button[type=submit]');page.wait_for_selector('[data-hot-trend]')
             page.locator('[data-hot-trend]').first.click();page.wait_for_selector('#hotTrendDialog[open] svg')
             page.click('#hotTrendDialog [data-close]');assert not calls
             page.click('[data-view=keywords]');page.wait_for_selector('#addKeyword')
@@ -107,5 +131,6 @@ with tempfile.TemporaryDirectory(prefix='discovery-browser-') as folder:
         assert not calls,calls
         print(json.dumps({'checks':'cache/free filters, confirmed mock fetch, verified add-monitor loop, hot charts, pagination jump, keyword permission, public portrait/CSV, no private inputs, single dialog, mobile','errors':errors,'real_paid_calls':0,'mock_paid_calls':3},ensure_ascii=False))
     finally:
+        native_ready.stop()
         server.shutdown();server.server_close()
         if store._CONN:store._CONN.close();store._CONN=None

@@ -1,4 +1,6 @@
 :root{--discover-ink:#263748;--discover-muted:#7d8997;--discover-blue:#256f95;--discover-line:#e4e9ef}
+.discovery-filters #profileField{flex:0 1 145px;min-width:125px}.discovery-filters #keywordField{flex:1 1 300px}.discovery-filters #limitField{flex:0 1 105px;min-width:85px}
+.discover-work>div{min-width:0;flex:1;overflow:hidden}.discover-work strong{overflow-wrap:anywhere;white-space:normal}.discover-account b{max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.discover-account b a{color:inherit;text-decoration:none}.discover-account b a:hover{text-decoration:underline}
 .discovery-main .discovery-panel .pagination input{width:44px;height:28px!important;padding:0 5px}
 .discovery-main .discovery-panel .pagination select{width:auto;height:28px!important;font-size:11px}
 .discovery-main .discovery-panel .pagination .btn{height:28px;padding:0 8px;font-size:11px}

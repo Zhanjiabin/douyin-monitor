@@ -24,6 +24,8 @@ LOCK = threading.RLock()
 BILL = '/api/v1/douyin/billboard/'
 INDEX = '/api/v1/douyin/index/'
 SOURCES = {
+    'native': ('Pro 关键词搜索', '', 'works'),
+    'native_hot': ('抖音实时热榜 · Pro', '', 'hot'),
     'lowfan': ('低粉爆款', BILL+'fetch_hot_total_low_fan_list', 'works'),
     'search': ('关键词作品', '/api/v1/douyin/search/fetch_video_search_v3', 'works'),
     'completion': ('高完播率榜', BILL+'fetch_hot_total_high_play_list', 'works'),
@@ -83,10 +85,21 @@ def integer(value,minimum,maximum,label):
 
 def query(data):
     if not isinstance(data,dict):raise ValueError('查询格式错误')
-    source=data.get('source','lowfan')
+    source=data.get('source','native')
     if source not in SOURCES:raise ValueError('请选择有效的数据类型')
     keyword=str(data.get('keyword') or '').strip()
-    if len(keyword)>80:raise ValueError('关键词最多 80 个字符')
+    if len(keyword)>(240 if source=='native' else 80):raise ValueError('关键词过长')
+    if source in {'native','native_hot'}:
+        import native_discovery
+        if source=='native_hot':return {'source':source}
+        profile=str(data.get('profile') or 'ai')
+        if profile not in {p['id'] for p in native_discovery.PROFILES}:raise ValueError('创作方向无效')
+        if not keyword and profile!='custom':keyword=','.join(next(p['keywords'] for p in native_discovery.PROFILES if p['id']==profile))
+        keyword=','.join(native_discovery.words(keyword))
+        days=integer(data.get('days',7),0,180,'发布时间')
+        if days not in {0,1,7,180}:raise ValueError('Pro 支持不限、一天、一周和半年范围')
+        return {'source':source,'keyword':keyword,'profile':profile,'limit':integer(data.get('limit',100),1,300,'采集数量'),
+                'days':days,'native_sort':integer(data.get('native_sort',1),0,2,'搜索排序')}
     category=str(data.get('category') or '')
     if category and category not in {str(c['value']) for c in categories()}:raise ValueError('请选择接口支持的平台分类')
     result={'source':source}
@@ -161,6 +174,23 @@ def prepare(data):
     init();q=query(data);source=q['source'];section=SOURCES[source][2]
     pages=integer(data.get('pages',1),1,3,'抓取页数')
     start=integer(data.get('page_start',1),1,50,'起始页数')
+    if source=='monitor':
+        import native_discovery
+        verified=native_discovery.verified(q['aweme_ids'])
+        if verified:
+            if pages!=1 or start!=1:raise ValueError('加入监控不支持分页')
+            return {'query':q,'pages':1,'page_start':1,'requests':[],'fingerprint':key({'query':q,'verified':verified}),
+                'calls':0,'paid':False,'provider':'MediaCrawlerPro','limit':len(verified),'allowed':True,'reason':'',
+                'title':'从已采作品加入监控','endpoints':[],'base_snapshot':None,'cached_monitor':True}
+    if source in {'native','native_hot'}:
+        import native_discovery
+        if pages!=1 or start!=1:raise ValueError('Pro 使用采集数量控制自动翻页，请调整数量后抓取')
+        reason=native_discovery.ready()
+        title='Pro · '+next(p['title'] for p in native_discovery.PROFILES if p['id']==q['profile']) if source=='native' else SOURCES[source][0]
+        return {'query':q,'pages':1,'page_start':1,'requests':[],'fingerprint':key({'query':q,'native_contract':1}),
+                'calls':0,'paid':False,'provider':'MediaCrawlerPro','limit':q.get('limit',50),
+                'allowed':not reason,'reason':reason,'title':title,
+                'endpoints':[],'base_snapshot':None}
     if section not in {'works','hot'} or source=='search':
         if pages!=1 or start!=1:raise ValueError('该查询只支持单次抓取')
     previous=latest(q) if start>1 else None
@@ -194,7 +224,7 @@ def prepare(data):
                'spec_version':tikhub.spec()['info']['version']}
     fingerprint=key(canonical)
     return {'query':q,'pages':pages,'page_start':start,'requests':requests,'fingerprint':fingerprint,
-            'calls':calls,'allowed':not reason,'reason':reason,'title':SOURCES[source][0],
+            'calls':calls,'paid':True,'provider':'TikHub','allowed':not reason,'reason':reason,'title':SOURCES[source][0],
             'today_calls':tikhub.usage(),'endpoints':[tikhub.operation(r['operation_id'])['path'] for r in requests],
             'base_snapshot':canonical['base_snapshot']}
 
@@ -348,6 +378,18 @@ def execute(request,progress=lambda _:None,cancelled=lambda:False):
     if not p['allowed'] or request.get('confirmed') is not True or request.get('fingerprint')!=p['fingerprint']:
         raise ValueError(p['reason'] or '条件、授权或缓存已变化，请重新预览')
     q=p['query'];items=[];series=[];receipts=[];errors=[];raw=[];attempted=0;total=None;provider_updated=None
+    if p.get('cached_monitor'):
+        import native_discovery
+        items=native_discovery.monitor(native_discovery.verified(q['aweme_ids']))
+    if q['source'] in {'native','native_hot'}:
+        import native_discovery
+        if request.get('discovery_rule') and not rule_allowed(request):raise ValueError('发现计划已暂停或修改')
+        response=native_discovery.execute(q,request.get('job_id',''),cancelled)
+        items=response['items'];errors=response['errors']
+        for item in items:
+            if item.get('create_time'):item['published_at']=published(item['create_time'])
+        if items:raw=[{'provider':'MediaCrawlerPro','pages':response['pages'],'count':len(items)}]
+        progress({'done':len(items),'total':q.get('limit',len(items)),'count':len(items)})
     for req in p['requests']:
         if cancelled():break
         if request.get('discovery_rule') and not rule_allowed(request):
@@ -410,7 +452,7 @@ def execute(request,progress=lambda _:None,cancelled=lambda:False):
     was_cancelled=cancelled()
     if was_cancelled:errors.append({'error':'任务已取消；已完成的请求仍已保存'})
     next_page=None
-    if SOURCES[q['source']][2] in {'works','hot'} and q['source']!='search' and raw and not errors:
+    if SOURCES[q['source']][2] in {'works','hot'} and q['source'] not in {'search','native','native_hot'} and raw and not errors:
         next_page=p['page_start']+len(raw)
         if (total is not None and next_page>math.ceil(total/20)) or not fresh_count:next_page=None
     payload={'items':items,'series':series,'raw':raw,'receipts':receipts,'errors':errors,'next_page':next_page,
@@ -420,7 +462,9 @@ def execute(request,progress=lambda _:None,cancelled=lambda:False):
         store.x('INSERT INTO discovery_snapshots VALUES(?,?,?,?,?,?,?,?)',(uuid.uuid4().hex,key(q),q['source'],json.dumps(q,ensure_ascii=False),json.dumps(payload,ensure_ascii=False),timestamp,'partial' if errors else 'completed',request.get('job_id','')))
     saved=f'{len(series)} 组指标' if series else f'{len(items)} 条结果'
     return {'ok':ok,'data':items,'errors':errors,'receipts':receipts,'attempted':attempted,'requested':p['calls'],
-            'query':q,'cancelled':was_cancelled,'message':('已取消；已完成的请求仍已保存' if was_cancelled else f'完成 {attempted} 次请求，保存 {saved}')}
+            'query':q,'cancelled':was_cancelled,'message':('已取消；已完成的请求仍已保存' if was_cancelled else
+                f'已从采集记录加入监控 {len(items)} 条，未调用付费接口' if p.get('cached_monitor') else
+                f'MediaCrawlerPro 采集完成，保存 {saved}' if q['source'] in {'native','native_hot'} else f'完成 {attempted} 次请求，保存 {saved}')}
 
 
 def watches(data=None):
@@ -518,8 +562,9 @@ def tick(at=None):
 
 def catalog():
     init()
+    import native_discovery
     return {'sources':[{'id':s,'title':v[0],'section':v[2]} for s,v in SOURCES.items() if v[2]!='monitor'],
-            'categories':categories(),'settings':settings(),
+            'categories':categories(),'settings':settings(),'profiles':native_discovery.PROFILES,
             'accounts':[{'sec_uid':a['sec_uid'],'name':a.get('nickname') or a.get('note'),'role':a.get('role')} for a in intelligence.list_tracked_accounts()]}
 
 
@@ -571,8 +616,10 @@ def export(data,fmt='csv'):
                     writer.writerow([safe(series['name']),safe(point['x']),safe(metric),v,series.get('unit',''),payload.get('created_at','')])
         return output.getvalue().encode('utf-8-sig'),'text/csv; charset=utf-8'
     items=payload.get('items',[])
-    fields=['title','account_name','published_at','duration','play_count','board_play_count','digg_count','fans','index','like_rate','follow_rate','completion_rate','heat','rank','rank_change','topic_plays','publish_count','category','source','fetched_at','url']
-    writer.writerow(['标题','作者','发布时间','时长秒','累计播放','榜单播放','点赞','作者粉丝','榜单分值或搜索指数','点赞率原值','涨粉率原值','完播率原值','热度','排名','排名变化','话题播放','参与作品数','分类','来源','采集时间','原视频'])
+    if snapshot['query']['source']=='native_hot' and data.get('keyword'):
+        items=[row for row in items if str(data['keyword']) in row.get('title','')]
+    fields=['title','account_name','published_at','duration','play_count','board_play_count','digg_count','fans','index','like_rate','follow_rate','completion_rate','heat','rank','rank_change','topic_plays','publish_count','category','source','fetched_at','url','matched_keyword','is_ai_declared']
+    writer.writerow(['标题','作者','发布时间','时长秒','累计播放','榜单播放','点赞','作者粉丝','榜单分值或搜索指数','点赞率原值','涨粉率原值','完播率原值','热度','排名','排名变化','话题播放','参与作品数','分类','来源','采集时间','原视频','搜索来源词','作者声明AI'])
     for row in items:
         cells=[]
         for field in fields:

@@ -34,6 +34,8 @@ Windows 的 MariaDB 业务库已导出到 `data/mcpro/server-migration/observato
 
 原生视频解析下载所需的签名、CookieBridge、Downloader 已安装 Python 3.12 隔离环境，并由 `douyin-native@sign`、`douyin-native@cookie`、`douyin-native@downloader` 三个 systemd 服务开机启动。服务仅监听回环地址 8989/8274/8205，不开放公网端口；复用此前已同步的普通平台登录，不索取创作者后台 Cookie。新下载仍受平台登录有效期、平台限制和内容可见性影响。浏览器采集和独立 AI 工作室未在服务器启用。
 
+MediaCrawlerPro-Python 的搜索与热搜运行环境也已安装，按任务启动独立进程，无需长期占用额外公网端口。首次真实采集返回 AI 成片 29、教程 50、趣味 27、漫剧 31 条结果，以及 50 条实时热榜；不同方向之间可能存在重复视频，作品库按 ID 去重。这轮采集前后 TikHub 当日调用数均为 14，未产生新增 TikHub 请求。上述数字仅是首次观测，不保证以后每轮相同。
+
 2026-11-04 运行环境安装时磁盘约有 12GB 可用；随后发布前复核，磁盘已扩到约 64GB，可用约 26GB。磁盘容量变化来自本次工作以外的服务器调整。旧部署的低空间提示已过时。此前用户批准过清理旧归档系统日志；实际清理越过日期边界的问题已单独披露，补存的传统日志副本位于 `/var/log/journal-recovery/`。本次没有继续删除系统日志或其他应用数据。
 
 如需在新 Linux 服务器安装原生下载能力，先按授权方式取得 MediaCrawlerPro 私有源码到 `vendor/MediaCrawlerPro`，再运行 `bash scripts/setup_server_native.sh`。此脚本只准备本项目隔离运行环境；不发布私有源码、配置或 Cookie。安装 `deploy/douyin-native@.service` 后启用以上三个实例。Downloader 的 systemd 依赖应包含 sign 与 cookie 两个实例。

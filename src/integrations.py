@@ -401,13 +401,16 @@ def crawl(request, job_id):
             raise ValueError("断点 ID 无效")
         args += ["--enable_checkpoint", "--checkpoint_id", str(resume)]
     else:
-        args += ["--enable_checkpoint"]
+        args += ["--no-enable_checkpoint" if request.get('discovery') else "--enable_checkpoint"]
     start("mcpro-sign"); start("mcpro-cookie")
     if platform == "dy":
         sync_douyin()
     folder = douk.metadata(job_id).parent
     native = folder / "mcpro-request.json"
-    write(native, {"arguments": args, "interval": 2})
+    native_request={"arguments": args, "interval": 2}
+    if request.get('discovery'):
+        native_request.update(discovery=request['discovery'],capture_path=str(folder/'discovery-native.json'))
+    write(native, native_request)
     env = {**os.environ, "DB_TYPE": "sqlite", "SQLITE_DB_PATH": str(RUNTIME / "crawler.db"),
            "SAVE_DATA_OPTION": "db", "ACCOUNT_POOL_SAVE_TYPE": "cookie_bridge",
            "COOKIE_BRIDGE_URL": "http://127.0.0.1:8274", "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}

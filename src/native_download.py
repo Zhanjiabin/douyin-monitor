@@ -188,7 +188,7 @@ def store_content(content,platform,job_id):
           'author':{'sec_uid':author['sec_uid'],'nickname':author.get('nickname'),'avatar_thumb':{'url_list':[author.get('avatar') or '']}},
           'video':{'cover':{'url_list':[row['cover_url']]}},
           'statistics':{k:row.get(k) for k in ('play_count','digg_count','comment_count','collect_count','share_count')}}
-        douk.import_rows([native],source='mcpro_downloader')
+        douk.import_rows([native],known_only=True,source='mcpro_downloader')
     return row
 
 

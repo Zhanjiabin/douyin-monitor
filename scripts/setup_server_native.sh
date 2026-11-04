@@ -29,10 +29,10 @@ if not (base/'node/bin/node').is_file():
     print('Installed Node',version,flush=True)
 PY
 data/native-runtime/tools/bin/uv python install 3.12
-for folder in MediaCrawlerPro-SignSrv MediaCrawlerPro-CookieBridge/server MediaCrawlerPro-Downloader/DownloadServer; do
+for folder in MediaCrawlerPro-SignSrv MediaCrawlerPro-CookieBridge/server MediaCrawlerPro-Downloader/DownloadServer MediaCrawlerPro-Python; do
     printf 'Installing native runtime: %s\n' "$folder"
     (cd "vendor/MediaCrawlerPro/$folder" && /opt/douyin-monitor/data/native-runtime/tools/bin/uv sync --frozen --no-dev --python 3.12)
 done
-chown -R douyin-monitor:douyin-monitor data/native-runtime vendor/MediaCrawlerPro/MediaCrawlerPro-SignSrv/.venv vendor/MediaCrawlerPro/MediaCrawlerPro-CookieBridge/server/.venv vendor/MediaCrawlerPro/MediaCrawlerPro-Downloader/DownloadServer/.venv
+chown -R douyin-monitor:douyin-monitor data/native-runtime vendor/MediaCrawlerPro/MediaCrawlerPro-SignSrv/.venv vendor/MediaCrawlerPro/MediaCrawlerPro-CookieBridge/server/.venv vendor/MediaCrawlerPro/MediaCrawlerPro-Downloader/DownloadServer/.venv vendor/MediaCrawlerPro/MediaCrawlerPro-Python/.venv
 data/native-runtime/node/bin/node --version
 df -h /

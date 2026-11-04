@@ -15,6 +15,7 @@ import intelligence
 import playback
 import store
 import tikhub
+import native_discovery
 
 
 class DiscoveryTests(unittest.TestCase):
@@ -55,6 +56,55 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(d.plan({'source':'lowfan'})['calls'],1)
             self.assertGreater(len(d.catalog()['categories']),30)
         transport.assert_not_called()
+
+    def test_native_defaults_are_ai_creative_and_no_paid_key_or_ledger_is_needed(self):
+        playback.save_settings({'api_key':''})
+        with patch.object(native_discovery,'ready',return_value=''),patch.object(tikhub.requests,'request') as paid:
+            p=d.plan({})
+        self.assertEqual(p['query']['source'],'native');self.assertIn('AI创意视频',p['query']['keyword'])
+        self.assertEqual(p['query']['limit'],100);self.assertTrue(p['allowed']);self.assertFalse(p['paid']);self.assertEqual(p['calls'],0)
+        self.assertEqual(tikhub.usage(),0);paid.assert_not_called()
+
+    def test_native_fetch_stays_native_and_does_not_monitor_authors_automatically(self):
+        q={'source':'native','profile':'custom','keyword':'AI短片','limit':100}
+        row=native_discovery.work({'aweme_id':self.aid,'desc':'AI成片','create_time':1793500000,
+            'video':{'duration':13000},'author':{'sec_uid':self.uid,'nickname':'公开作者'},
+            'statistics':{'play_count':0,'digg_count':1200,'collect_count':100}})
+        with patch.object(native_discovery,'ready',return_value=''),patch.object(native_discovery,'execute',return_value={'items':[row],'errors':[],'pages':3}),patch.object(tikhub.requests,'request') as paid:
+            p=d.plan(q);r=d.execute({'query':p['query'],'confirmed':True,'fingerprint':p['fingerprint'],'job_id':'0'*16})
+        self.assertTrue(r['ok']);self.assertEqual(r['attempted'],0);self.assertEqual(tikhub.usage(),0)
+        self.assertIsNone(r['data'][0]['play_count']);self.assertEqual(r['data'][0]['duration'],13)
+        self.assertEqual(d.cached(q)['snapshot']['items'][0]['account_name'],'公开作者')
+        self.assertFalse(store.q('SELECT * FROM tracked_accounts'));paid.assert_not_called()
+
+    def test_native_failure_never_falls_back_to_paid_provider_or_overwrites_cache(self):
+        with patch.object(native_discovery,'ready',return_value=''),patch.object(native_discovery,'execute',return_value={'items':[],'errors':[{'error':'平台限制'}],'pages':0}),patch.object(tikhub.requests,'request') as paid:
+            p=d.plan({'source':'native'});r=d.execute({'query':p['query'],'confirmed':True,'fingerprint':p['fingerprint'],'job_id':'0'*16})
+        self.assertFalse(r['ok']);self.assertTrue(r['errors']);self.assertIsNone(d.cached(p['query'])['snapshot']);paid.assert_not_called()
+
+    def test_native_limits_terms_and_time_ranges_are_validated(self):
+        for q in [{'limit':301},{'days':30},{'native_sort':9},{'profile':'missing'},{'profile':'custom','keyword':'a,b,c,d,e,f'}]:
+            with self.subTest(q=q),self.assertRaises(ValueError):d.query({'source':'native',**q})
+
+    def test_verified_native_monitor_is_free_preserves_role_and_original_observation_date(self):
+        self.own();douk.init_tables()
+        v={'aweme_id':self.aid,'source':'native','sec_uid':self.uid,'title':'AI创意视频','account_name':'自有',
+           'create_time':1793500000,'fetched_at':'2026-11-01T10:00:00+08:00','play_count':None,'digg_count':100}
+        store.x('INSERT INTO discovery_works VALUES(?,?,?)',(self.aid,json.dumps(v),'2026-11-01'))
+        with patch.object(tikhub.requests,'request') as paid:
+            p=d.plan({'source':'monitor','aweme_id':self.aid})
+            self.assertFalse(p['paid']);self.assertEqual(p['calls'],0)
+            r=d.execute({'query':p['query'],'confirmed':True,'fingerprint':p['fingerprint']})
+        self.assertTrue(r['ok']);paid.assert_not_called()
+        self.assertEqual(store.q('SELECT role FROM tracked_accounts')[0]['role'],'own')
+        self.assertEqual(store.q("SELECT fetch_date FROM external_video_observations WHERE source='mcpro_discovery'")[0]['fetch_date'],'2026-11-01')
+
+    def test_downloading_discovered_work_does_not_subscribe_to_its_author(self):
+        import native_download
+        native_download.store_content({'id':self.aid,'title':'AI 创意素材','url':'https://www.douyin.com/video/'+self.aid,
+            'author':{'sec_uid':self.uid,'nickname':'未监控作者'},'interaction':{'liked_count':1200}},'dy','test')
+        self.assertFalse(store.q('SELECT * FROM tracked_accounts'))
+        self.assertTrue(store.q('SELECT * FROM content_library WHERE content_id=?',(self.aid,)))
 
     def test_all_product_routes_compile_against_pinned_spec(self):
         intelligence.add_account(self.uid,'测试','peer')

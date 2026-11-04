@@ -111,6 +111,11 @@ elif kind == "crawl":
     import db
     if config.PLATFORM == 'dy' or '--platform' in request['arguments']:
         from media_platform.douyin.client import DouYinApiClient
+        if request.get('discovery'):
+            from native_discovery_hook import install
+            from media_platform.douyin.field import SearchSortType,PublishTimeType,SearchChannelType
+            from media_platform.douyin.handlers.hot_search_handler import HotSearchHandler
+            install(DouYinApiClient,request['discovery'],request['capture_path'],SearchSortType,PublishTimeType,HotSearchHandler,SearchChannelType.VIDEO)
         # Douyin can return a full page even for a small requested count. Clamp
         # the returned page before processing / persistence, not after saving it.
         original_comments=DouYinApiClient.get_aweme_comments
