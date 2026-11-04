@@ -40,6 +40,30 @@ class Handler(app.Handler):
     def log_message(self,*_):pass
 
 
+def check_fixed_frame(page, scroller='.hub-table-scroll', pager=True):
+    """Prove that the content scrolls without moving or clipping the frame."""
+    pane=page.locator(scroller)
+    pane.evaluate('e=>{e.scrollTop=0;e.scrollLeft=0}')
+    pinned=['.topbar','.hub-tabs','#hubFilters','#hubPager'] if pager else ['.topbar','.hub-tabs','#hubReportFilters']
+    before=[page.locator(s).bounding_box() for s in pinned]
+    for box in before:
+        assert box and box['y']>=0 and box['y']+box['height']<=page.viewport_size['height']+1,(page.viewport_size,box)
+    assert page.evaluate('document.documentElement.scrollHeight<=innerHeight+1 && document.documentElement.scrollWidth<=innerWidth+1'),'outer frame overflow'
+    box=pane.bounding_box()
+    assert box and box['height']>=60,(page.viewport_size,box)
+    assert pane.evaluate('e=>e.scrollHeight>e.clientHeight'),'fixture must overflow the inner pane'
+    page.mouse.move(min(box['x']+box['width']/2,page.viewport_size['width']-20),box['y']+box['height']/2)
+    page.mouse.wheel(0,500)
+    page.wait_for_function('(selector)=>document.querySelector(selector).scrollTop>0',arg=scroller)
+    assert page.evaluate('scrollY===0 && scrollX===0'),'scroll escaped to the page'
+    assert before==[page.locator(s).bounding_box() for s in pinned],'fixed controls moved'
+    # Scrolling beyond the list end must not move the surrounding page either.
+    pane.evaluate('e=>e.scrollTop=e.scrollHeight')
+    page.mouse.wheel(0,500);page.wait_for_timeout(100)
+    assert page.evaluate('scrollY===0 && scrollX===0')
+    pane.evaluate('e=>{e.scrollTop=0;e.scrollLeft=0}')
+
+
 with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
     temp=Path(temp);store.DB_PATH=temp/'test.db';store._CONN=None;playback.SETTINGS=temp/'api.json';douk.JOBS=temp/'jobs'
     store.init_db();playback.init();corpus.init();hub.init()
@@ -68,7 +92,12 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             assert page.locator('#hubPager [data-pager-total]').inner_text()=='共 61 条作品'
             assert page.locator('#hubTable tbody tr').count()==20
             assert page.locator('.stats').count()==0
+            for width,height in [(1580,1020),(1900,900),(1366,768),(950,500)]:
+                page.set_viewport_size({'width':width,'height':height})
+                check_fixed_frame(page)
+            page.set_viewport_size({'width':1900,'height':900})
             page.screenshot(path=str(OUT/'library-desktop.png'),full_page=True)
+            page.set_viewport_size({'width':1580,'height':1020})
             page.fill('#hubFilters input[name=keyword]','这个词不存在')
             assert page.locator('#hubTable tbody tr').count()==20
             page.click('#hubFilters button[type=submit]');page.wait_for_selector('.hub-empty')
@@ -84,6 +113,7 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             page.screenshot(path=str(OUT/'work-detail.png'),full_page=True)
             page.click('#hubDetail [data-hub-close]')
             page.click('[data-hub-view=pulse]');page.wait_for_selector('#hubTable [data-kind=hot]')
+            check_fixed_frame(page)
             page.screenshot(path=str(OUT/'hot-desktop.png'),full_page=True)
             page.locator('#hubTable [data-hub-detail]').first.click();page.wait_for_selector('#hubDetail[open] svg')
             assert '历史记录' in page.locator('#hubDetail').inner_text()
@@ -97,6 +127,7 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             page.click('#hubGenerate');page.wait_for_selector('.hub-report-document')
             assert page.locator('.hub-idea').count()==6
             assert '排名上升的热点' in page.locator('#hubReportBody').inner_text()
+            check_fixed_frame(page,'#hubReportBody',pager=False)
             export=page.locator('#hubReportExport').get_attribute('href')
             response=page.request.get(base+export);assert response.status==200 and 'AI电影角色' in response.text()
             page.screenshot(path=str(OUT/'report-desktop.png'),full_page=True)
@@ -118,10 +149,15 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             assert all('multi_video_statistics' not in str(req) for req in submitted)
             page.set_viewport_size({'width':390,'height':844});page.goto(base+'/discover');page.wait_for_selector('[data-hub-detail]')
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),'page-level overflow on mobile'
+            check_fixed_frame(page)
             page.screenshot(path=str(OUT/'library-mobile.png'),full_page=True)
+            page.click('[data-hub-view=pulse]');page.wait_for_selector('#hubTable [data-kind=hot]')
+            check_fixed_frame(page)
+            page.click('[data-hub-view=reports]');page.wait_for_selector('.hub-report-document')
+            check_fixed_frame(page,'#hubReportBody',pager=False)
             assert not errors,errors
             transport.assert_not_called()
-            print(json.dumps({'checks':'local library/search/reset/pagination, rich details/history, deliberate keyword search, evidence report/export, editable auto schedule, quoted grouped sync, responsive UI','errors':errors,'real_paid_calls':0,'mock_jobs':len(submitted)},ensure_ascii=False))
+            print(json.dumps({'checks':'local library/search/reset/pagination, rich details/history, deliberate keyword search, evidence report/export, editable auto schedule, quoted grouped sync, fixed outer frame and internal scrolling across desktop/mobile library/hot/reports','errors':errors,'real_paid_calls':0,'mock_jobs':len(submitted)},ensure_ascii=False))
             browser.close()
     finally:
         server.shutdown();server.server_close()
