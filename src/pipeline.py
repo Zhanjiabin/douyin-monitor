@@ -11,7 +11,7 @@ import time
 
 import store
 import intelligence
-from collector import DouyinCollector
+from collector import DouyinCollector, PlaybackUnavailable
 from config import load_config
 from resolve import ResolveCache, resolve_aweme_id
 
@@ -43,6 +43,8 @@ def _persist_mix(mix_id, r, fd):
     store.save_video_snapshots(mix_id, eps, fd)
     store.save_mix_partial(mix_id, fd, len(eps), play_sum,
                            r.get("updated_to_episode"))
+    intelligence.save_playback_check(mix_id, "partial" if r.get("has_more_left") else "complete",
+                                    "合集分集尚未取全" if r.get("has_more_left") else "已读取合集播放接口")
 
 
 def run_once(progress=None, log=None, should_stop=None, cfg=None):
@@ -231,9 +233,18 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
                 name = account.get("nickname") or account.get("note") or sec_uid
                 progress(len(items) + account_idx - 1, total, f"扫描账号 {name}")
                 try:
-                    discovered = col.collect_author_posts(sec_uid, max_pages=int(cfg.get("account_discovery_pages", 4) or 4))
+                    attempts = min(3, max(1, int(cfg.get("max_retries", 3))))
+                    for attempt in range(attempts):
+                        try:
+                            discovered = col.collect_author_posts(sec_uid, max_pages=int(cfg.get("account_discovery_pages", 30) or 30), should_stop=should_stop)
+                            break
+                        except Exception as exc:
+                            if _browser_gone(exc) or should_stop() or attempt == attempts - 1:
+                                raise
+                            log(f"账号「{name}」主页响应异常，等待后重试 ({attempt + 1}/{attempts})")
+                            col._page.wait_for_timeout(2000 * (attempt + 1))
                     posts = discovered.get("items") or []
-                    intelligence.save_account_posts(sec_uid, discovered.get("author_name") or name, posts)
+                    intelligence.save_discovery(sec_uid, discovered)
                     authors[sec_uid] = discovered.get("author_name") or name
                     stat["accounts_scanned"] += 1
                     stat["ok"] += 1
@@ -241,30 +252,47 @@ def run_once(progress=None, log=None, should_stop=None, cfg=None):
                     standalone_count = sum(1 for p in posts if not p.get("mix_id"))
                     stat["standalone_videos"] += standalone_count
                     log(f"账号「{name}」发现 {len(posts)} 条公开作品，其中 {standalone_count} 条为非合集作品")
-                    # 新作品所属合集进入队列；同一合集只有出现更新作品才再次补采。
+                    if discovered.get("has_more"):
+                        log(f"  主页总数 {discovered.get('profile', {}).get('homepage_count', '未知')}，本次尚未取全：{discovered.get('scan_status')}")
+                    # 每日刷新既有合集；当天发布新作品也补采。最久未采优先，避免队列饥饿。
                     limit = max(0, int(cfg.get("account_discovery_mix_limit", 5) or 0))
                     candidates = {}
-                    for post in posts:
+                    for post in sorted(posts, key=lambda p: int(p.get("create_time") or 0)):
                         mid = post.get("mix_id")
-                        if not mid or mid in candidates:
+                        if not mid or mid in candidates or mid in mix_data:
                             continue
                         latest_ct = max((int(x.get("create_time") or 0) for x in posts if x.get("mix_id")==mid), default=0)
                         if intelligence.account_mix_needs_scan(sec_uid, mid, latest_ct):
                             candidates[mid] = (post["aweme_id"], latest_ct)
-                    for mid, pair in list(candidates.items())[:limit]:
+                    last_scans = {r["mix_id"]: r["scanned_at"] or "" for r in store.q(
+                        "SELECT mix_id,scanned_at FROM tracked_account_mix_scans WHERE sec_uid=?", (sec_uid,))}
+                    queue = sorted(candidates.items(), key=lambda pair: last_scans.get(pair[0], ""))
+                    for mid, pair in queue[:limit]:
                         if should_stop():
                             _interrupt("收到停止指令")
                             break
                         representative, latest_ct = pair
                         try:
-                            result = col.collect_video(representative)
-                            if result.get("mix_id") and result.get("episodes"):
+                            result = col.collect_collection(representative, mid, posts, should_stop)
+                            if result.get("mix_id") == mid and result.get("episodes"):
                                 mix_data[result["mix_id"]] = result
                                 _persist_mix(result["mix_id"], result, fd)
-                                intelligence.mark_account_mix_scanned(sec_uid, mid, latest_ct)
+                                if not result.get("has_more_left"):
+                                    intelligence.mark_account_mix_scanned(sec_uid, mid, latest_ct)
+                                else:
+                                    log("  分集未取全，保留待补采状态")
                                 log(f"  合集「{result.get('mix_name')}」已更新 {len(result.get('episodes') or [])} 集")
+                        except PlaybackUnavailable as exc:
+                            intelligence.save_playback_check(mid,"unavailable",str(exc)[:300])
+                            intelligence.mark_account_mix_scanned(sec_uid, mid, latest_ct)
+                            store.x("UPDATE tracked_accounts SET playback_warning=? WHERE sec_uid=?",
+                                    ("部分合集未公开可验证的播放量；作品和互动数据已保存。", sec_uid))
+                            log(f"  合集播放未公开：{str(exc)[:120]}")
                         except Exception as exc:
+                            intelligence.save_playback_check(mid,"failed",str(exc)[:300])
                             log(f"  合集补采失败：{str(exc)[:120]}")
+                            store.x("UPDATE tracked_accounts SET playback_warning=? WHERE sec_uid=?",
+                                    ("作品已发现；合集播放量补采失败：" + str(exc)[:240], sec_uid))
                         try:
                             col.sleep_between()
                         except Exception:

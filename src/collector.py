@@ -8,8 +8,8 @@
   mix/aweme     合集内视频   → 该合集【每一集的真实 play_count】（核心数据源）
   mix/list      账号合集列表 → 合集【官方口径总播放量 play_vv】
 
-注意：aweme/detail 里的 statistics.play_count 恒为 0，不要用它；
-      单集播放量只在 mix/aweme 里是真实值。
+当前以 mix/aweme 作为播放量来源；其它接口返回的零占位不直接入库。
+页面可能只调用 series/aweme，需主动请求已知的 mix/aweme 并按游标翻页。
 """
 import random
 import time
@@ -20,8 +20,27 @@ from config import BROWSER_PROFILE, USER_AGENT
 
 EP_DETAIL = "aweme_detail_"
 EP_MIX_AWEME = "mix_aweme_"
+EP_SERIES_AWEME = "series_aweme_"
 EP_MIX_LIST = "mix_list_"
 EP_AWEME_POST = "aweme_post_"
+EP_PROFILE = "user_profile_other_"
+
+
+class PlaybackUnavailable(RuntimeError):
+    """The page exposes episodes but not verified playback metrics."""
+
+
+JS_SCROLL_POSTS = """() => {
+  const candidates = [...document.querySelectorAll('*')].filter(e =>
+    e.clientHeight > 200 && e.scrollHeight > e.clientHeight + 80 &&
+    /(auto|scroll)/.test(getComputedStyle(e).overflowY));
+  candidates.sort((a,b) => b.querySelectorAll('a[href*="/video/"]').length - a.querySelectorAll('a[href*="/video/"]').length);
+  const e = candidates[0] || document.scrollingElement;
+  e.scrollTop = Math.max(0, e.scrollHeight - e.clientHeight - 120);
+  e.scrollBy(0, 300);
+  const r = e.getBoundingClientRect();
+  return {x: Math.min(innerWidth-20, r.x+r.width/2), y: Math.min(innerHeight-20,r.y+r.height/2)};
+}"""
 
 JS_KILL_OVERLAY = """
 () => {
@@ -111,7 +130,7 @@ class DouyinCollector:
         if "/aweme/v1/web/" not in url:
             return
         key = url.split("?")[0].rsplit("/web/", 1)[-1].replace("/", "_")
-        if key not in (EP_DETAIL, EP_MIX_AWEME, EP_MIX_LIST, EP_AWEME_POST):
+        if key not in (EP_DETAIL, EP_MIX_AWEME, EP_MIX_LIST, EP_AWEME_POST, EP_SERIES_AWEME, EP_PROFILE):
             return
         try:
             data = resp.json()
@@ -131,7 +150,7 @@ class DouyinCollector:
         return []
 
     # ---------- 采集：单条视频 → 所属合集 + 每集播放量 ----------
-    def collect_video(self, aweme_id):
+    def collect_video(self, aweme_id, should_stop=None):
         self._reset_cap()
         self._page.goto(
             f"https://www.douyin.com/video/{aweme_id}",
@@ -142,7 +161,10 @@ class DouyinCollector:
         if not details:
             raise RuntimeError("未捕获到视频详情接口，可能被风控或页面结构变化")
 
-        detail = details[0].get("aweme_detail") or {}
+        detail = next((r.get("aweme_detail") for r in details
+                       if str((r.get("aweme_detail") or {}).get("aweme_id")) == str(aweme_id)), None)
+        if not detail:
+            raise RuntimeError("视频详情未返回目标作品，可能页面受限；不能判定为无合集")
         author = detail.get("author") or {}
         mix = detail.get("mix_info") or {}
         statis = mix.get("statis") or {}
@@ -162,13 +184,30 @@ class DouyinCollector:
             result["note"] = "该视频未发布在任何合集中"
             return result
 
-        # 合集内视频列表（含每集真实播放量）
-        self._wait_cap(EP_MIX_AWEME, timeout=20)
-        self._expand_mix_panel()
+        # A page may only request series/aweme even though mix/aweme still works.
+        # Request the known endpoint in the same browser; use its real cursor.
+        explicit = self._fetch_mix_pages(str(result["mix_id"]), should_stop)
+        if explicit:
+            responses = explicit
+        else:
+            self._wait_cap(EP_MIX_AWEME, timeout=20)
+            responses = self._cap.get(EP_MIX_AWEME) or []
+            if not responses:
+                if self._cap.get(EP_SERIES_AWEME):
+                    raise PlaybackUnavailable("页面分集响应无有效播放量，主动请求合集接口也未取得有效数据；保留缺失，不记录为零")
+                raise RuntimeError("已识别合集，但主动请求和页面响应均未取得合集数据；稍后重试")
+            self._expand_mix_panel()
+            responses = self._cap.get(EP_MIX_AWEME) or []
 
         eps = {}
-        for resp in self._cap.get(EP_MIX_AWEME, []):
+        for resp in responses:
             for a in resp.get("aweme_list") or []:
+                item_mix = (a.get("mix_info") or {}).get("mix_id")
+                if item_mix and str(item_mix) != str(result["mix_id"]):
+                    continue
+                item_author = (a.get("author") or {}).get("sec_uid")
+                if item_author and result.get("sec_uid") and item_author != result["sec_uid"]:
+                    continue
                 st = a.get("statistics") or {}
                 aid = str(a.get("aweme_id") or "")
                 if not aid:
@@ -176,7 +215,7 @@ class DouyinCollector:
                 eps[aid] = {
                     "aweme_id": aid,
                     "title": a.get("desc"),
-                    "play_count": _num(st.get("play_count")),
+                    "play_count": _num(st.get("play_count")) if (_num(st.get("play_count")) or 0) > 0 else None,
                     "digg_count": _num(st.get("digg_count")),
                     "comment_count": _num(st.get("comment_count")),
                     "share_count": _num(st.get("share_count")),
@@ -185,8 +224,51 @@ class DouyinCollector:
                 }
         ordered = self._order_episodes(eps)
         result["episodes"] = ordered
-        result["has_more_left"] = self._mix_has_more()
+        if not ordered:
+            raise RuntimeError("合集请求没有返回目标作品列表，保留待重试状态")
+        if ordered and not any(e.get("play_count") is not None for e in ordered):
+            raise PlaybackUnavailable("合集接口返回了作品，但播放量全为零占位或缺失，尚未取得可验证值")
+        result["pagination_incomplete"] = bool(responses[-1].get("has_more"))
+        result["has_more_left"] = result["pagination_incomplete"] or len(ordered) < (result.get("updated_to_episode") or 0)
         return result
+
+    def _fetch_mix_pages(self, mix_id, should_stop=None):
+        """Same-origin read, no signature reverse engineering or exported cookies."""
+        should_stop = should_stop or (lambda: False)
+        pages, cursor, seen = [], 0, set()
+        limit = min(100, max(1, int(self.cfg.get("account_discovery_pages", 30))))
+        for _ in range(limit):
+            if should_stop():
+                break
+            try:
+                response = self._page.evaluate("""async ({mixId,cursor}) => {
+                    const params = new URLSearchParams({device_platform:'webapp',aid:'6383',mix_id:mixId,cursor:String(cursor),count:'15'});
+                    try {
+                        const r=await fetch('/aweme/v1/web/mix/aweme/?'+params,
+                            {credentials:'same-origin',signal:AbortSignal.timeout(12000)});
+                        if(!r.ok) return null;
+                        return await r.json();
+                    } catch { return null; }
+                }""", {"mixId": mix_id, "cursor": cursor})
+            except Exception:
+                break
+            if not isinstance(response, dict) or response.get("status_code") != 0 or not isinstance(response.get("aweme_list"), list):
+                break
+            rows = response["aweme_list"]
+            ids = {str(a.get("aweme_id")) for a in rows if a.get("aweme_id")}
+            # Repeated pages must not be interpreted as progress or completion.
+            if rows and not ids - seen:
+                break
+            pages.append(response)
+            seen.update(ids)
+            if not response.get("has_more"):
+                break
+            next_cursor = _num(response.get("cursor"))
+            if next_cursor is None or next_cursor <= cursor or not rows:
+                break
+            cursor = next_cursor
+            self._page.wait_for_timeout(450)
+        return pages
 
     def _expand_mix_panel(self):
         """翻页：合集集数多时，滚动触发加载更多；已取完则直接返回。"""
@@ -209,6 +291,41 @@ class DouyinCollector:
             if after <= before:
                 break
 
+    def collect_collection(self, aweme_id, mix_id, known_posts, should_stop=None):
+        """Detail pages expose a window around the current episode, not the entire mix.
+
+        Open uncovered known episodes through normal navigation, merging windows.
+        A terminal cursor only ends its window; compare the declared total too.
+        """
+        should_stop = should_stop or (lambda: False)
+        result = self.collect_video(aweme_id, should_stop=should_stop)
+        if result.get("mix_id") != mix_id:
+            raise RuntimeError("返回合集与目标不一致，未写入播放数据")
+        episodes = {e["aweme_id"]: e for e in result.get("episodes") or []}
+        candidates = sorted((p for p in known_posts if p.get("mix_id") == mix_id),
+                            key=lambda p: int(p.get("create_time") or 0))
+        limit = min(100,max(1,int(self.cfg.get("account_discovery_pages",30))))
+        visited = 1
+        for post in candidates:
+            if post["aweme_id"] in episodes:
+                continue
+            if should_stop() or visited >= limit:
+                break
+            self._page.wait_for_timeout(800)
+            try:
+                window = self.collect_video(post["aweme_id"], should_stop=should_stop)
+                visited += 1
+                if window.get("mix_id") != mix_id:
+                    continue
+                episodes.update({e["aweme_id"]:e for e in window.get("episodes") or []})
+            except Exception as exc:
+                self.log(f"合集分段补采中断，保留已取 {len(episodes)} 集：{str(exc)[:120]}")
+                break
+        result["episodes"] = self._order_episodes(episodes)
+        expected = max(result.get("updated_to_episode") or 0,len(candidates))
+        result["has_more_left"] = bool(result.get("pagination_incomplete")) or len(episodes) < expected or any(p["aweme_id"] not in episodes for p in candidates)
+        return result
+
     def _mix_has_more(self):
         resps = self._cap.get(EP_MIX_AWEME) or []
         if not resps:
@@ -226,7 +343,8 @@ class DouyinCollector:
         return items
 
     # ---------- 采集：作者主页公开作品列表 ----------
-    def collect_author_posts(self, sec_uid, max_pages=4):
+    def collect_author_posts(self, sec_uid, max_pages=30, should_stop=None):
+        should_stop = should_stop or (lambda: False)
         self._reset_cap()
         self._page.goto(f"https://www.douyin.com/user/{sec_uid}", wait_until="domcontentloaded", timeout=60000)
         self._page.wait_for_timeout(5000)
@@ -241,19 +359,42 @@ class DouyinCollector:
                 self._page.evaluate(JS_CLICK_TAB, "作品")
             except Exception:
                 pass
-        max_pages = min(10, max(1, int(max_pages)))
+        max_pages = min(100, max(1, int(max_pages)))
         captured = self._wait_cap(EP_AWEME_POST, timeout=20)
         if not captured:
             raise RuntimeError("未捕获到作者作品列表接口，可能页面受限或抖音页面结构已变化")
-        for _ in range(max(0, max_pages-1)):
+        scan_status = "complete"
+        for _ in range(max_pages):
             responses=self._cap.get(EP_AWEME_POST) or []
             if not responses or not responses[-1].get("has_more"):
                 break
-            before=sum(len(x.get("aweme_list") or []) for x in responses)
-            self._page.mouse.wheel(0, 2200)
-            self._page.wait_for_timeout(1800)
-            after=sum(len(x.get("aweme_list") or []) for x in (self._cap.get(EP_AWEME_POST) or []))
-            if after<=before:
+            if should_stop():
+                scan_status = "stopped"
+                break
+            if self._page.get_by_text("登录后查看更多作品", exact=False).count():
+                scan_status = "login_required"
+                break
+            if len(responses) >= max_pages:
+                scan_status = "page_limit"
+                break
+            before = {str(a.get("aweme_id")) for r in responses for a in r.get("aweme_list") or []}
+            advanced = False
+            for attempt in range(3):
+                pos = self._page.evaluate(JS_SCROLL_POSTS)
+                self._page.mouse.move(pos["x"], pos["y"])
+                self._page.mouse.wheel(0, 1800)
+                for tick in range(12):
+                    self._page.wait_for_timeout(400)
+                    after = {str(a.get("aweme_id")) for r in self._cap.get(EP_AWEME_POST, []) for a in r.get("aweme_list") or []}
+                    if after - before or not self._cap[EP_AWEME_POST][-1].get("has_more"):
+                        advanced = True
+                        break
+                    if should_stop():
+                        break
+                if advanced or should_stop():
+                    break
+            if not advanced:
+                scan_status = "stopped" if should_stop() else "login_required" if self._page.get_by_text("登录后查看更多作品", exact=False).count() else "stalled"
                 break
         found={}
         for response in self._cap.get(EP_AWEME_POST,[]):
@@ -261,6 +402,8 @@ class DouyinCollector:
                 aid=str(item.get("aweme_id") or "")
                 if not aid: continue
                 author=item.get("author") or {}
+                if author.get("sec_uid") and author["sec_uid"] != sec_uid:
+                    continue
                 stats=item.get("statistics") or {}
                 mix=item.get("mix_info") or {}
                 mix_stats=mix.get("statis") or {}
@@ -269,6 +412,7 @@ class DouyinCollector:
                     return value if value is not None and value>=0 else None
                 found[aid]={
                     "aweme_id":aid,"title":item.get("desc"),
+                    "cover_url":next(iter(((item.get("video") or {}).get("cover") or {}).get("url_list") or []), None),
                     "create_time":_num(item.get("create_time")),
                     "sec_uid":author.get("sec_uid") or sec_uid,
                     "author_name":author.get("nickname"),
@@ -284,8 +428,19 @@ class DouyinCollector:
         items=list(found.values())
         items.sort(key=lambda x:x.get("create_time") or 0,reverse=True)
         nickname=next((x.get("author_name") for x in items if x.get("author_name")),None)
+        profile = next((r.get("user") for r in self._cap.get(EP_PROFILE, [])
+                        if (r.get("user") or {}).get("sec_uid") == sec_uid), {}) or {}
+        avatar = (profile.get("avatar_thumb") or {}).get("url_list") or []
+        has_more = bool((self._cap.get(EP_AWEME_POST) or [{}])[-1].get("has_more"))
+        if has_more and scan_status == "complete":
+            scan_status = "page_limit"
         return {"sec_uid":sec_uid,"author_name":nickname,"items":items,
-                "has_more":bool((self._cap.get(EP_AWEME_POST) or [{}])[-1].get("has_more"))}
+                "has_more":has_more, "scan_status":scan_status,
+                "scan_pages":len(self._cap.get(EP_AWEME_POST, [])),
+                "profile":{"avatar_url":avatar[0] if avatar else None,
+                           "homepage_count":_num(profile.get("aweme_count")),
+                           "follower_count":_num(profile.get("follower_count")),
+                           "total_favorited":_num(profile.get("total_favorited"))}}
 
     # ---------- 采集：作者主页 → 各合集官方总播放量 ----------
     def collect_author_mixes(self, sec_uid):

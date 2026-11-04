@@ -1,0 +1,180 @@
+{
+  "as_of": "2026-11-04",
+  "source": "https://github.com/MediaCrawlerPro/.github/blob/main/profile/README.md",
+  "projects": [
+    {
+      "id": "mcpro-python",
+      "name": "MediaCrawlerPro-Python",
+      "role": "多平台采集",
+      "features": "搜索、作品、评论、账号主页、热榜、断点续爬、账号及代理池",
+      "input": "关键词、内容链接、账号主页",
+      "output": "作品、评论、账号与采集进度",
+      "depends_on": [
+        "mcpro-sign"
+      ],
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python",
+      "included": true,
+      "source_status": "fetched",
+      "integration_status": "integrated",
+      "bridge": "独立 Python 进程；统一任务、断点、8 平台内容及评论库；抖音按作品 ID 关联现有监控",
+      "verification": "真实抖音详情与精确 2 条评论已实测；其他平台需各自登录"
+    },
+    {
+      "id": "mcpro-sign",
+      "name": "MediaCrawlerPro-SignSrv",
+      "role": "请求签名服务",
+      "features": "为采集器提供独立的 JavaScript 签名服务",
+      "input": "平台请求参数",
+      "output": "签名结果",
+      "depends_on": [],
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-SignSrv",
+      "included": true,
+      "source_status": "fetched",
+      "integration_status": "integrated",
+      "bridge": "8989 本机签名服务；Windows 使用 Node 实际路径与标准输入传参",
+      "verification": "组合签名已用于真实抖音详情采集"
+    },
+    {
+      "id": "mcpro-downloader",
+      "name": "MediaCrawlerPro-Downloader",
+      "role": "媒体下载",
+      "features": "多平台视频及图片下载，包含桌面前端和 Python 后端",
+      "input": "内容链接",
+      "output": "媒体文件与下载记录",
+      "depends_on": [
+        "mcpro-sign",
+        "mcpro-cookie"
+      ],
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-Downloader",
+      "included": true,
+      "source_status": "fetched",
+      "integration_status": "integrated",
+      "bridge": "8205 解析 API；网页账号查询、分页列表、批量作品解析及断点下载；B站音视频合并",
+      "verification": "真实抖音解析、96.5 MB 下载与范围播放已实测；其他平台需各自登录"
+    },
+    {
+      "id": "mcpro-cookie",
+      "name": "MediaCrawlerPro-CookieBridge",
+      "role": "浏览器登录同步",
+      "features": "Chrome 扩展与服务器自动同步 Cookie",
+      "input": "用户在扩展中选择的登录状态",
+      "output": "本机登录状态",
+      "depends_on": [],
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-CookieBridge",
+      "included": true,
+      "source_status": "fetched",
+      "integration_status": "integrated",
+      "bridge": "8274 登录服务与浏览器扩展；同步现有抖音 Cookie；手动账号登记与凭据私有保存",
+      "verification": "抖音登录及账号池已实测；浏览器扩展需用户加载"
+    },
+    {
+      "id": "mcpro-remix",
+      "name": "MediaCrawlerPro-ContentRemixAgent",
+      "role": "内容分析",
+      "features": "多平台解析、视频转文字、内容结构及爆款因素分析、报告生成",
+      "input": "内容链接、模型及转写配置",
+      "output": "逐字稿与结构化分析报告",
+      "depends_on": [
+        "mcpro-downloader"
+      ],
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-ContentRemixAgent",
+      "included": true,
+      "source_status": "fetched",
+      "integration_status": "integrated",
+      "bridge": "8001 API + 5373 完整工作室；本机会话；共用解析服务与本机 MariaDB；作品可直接带入",
+      "verification": "完整页面与鉴权通过；生成与分析需配置模型"
+    },
+    {
+      "id": "pictactic",
+      "name": "PicTacticAgent",
+      "role": "图片生成",
+      "features": "LangGraph 多轮生成、评估与迭代，199 条精选模板",
+      "input": "图片需求、模板、模型配置",
+      "output": "生成图片与评估记录",
+      "depends_on": [],
+      "repository": "https://github.com/MediaCrawlerPro/PicTacticAgent",
+      "included": true,
+      "source_status": "fetched",
+      "integration_status": "integrated",
+      "bridge": "8019 API + 3019 完整工作室；199 条模板；图片与视频工具、迭代记录进入统一入口",
+      "verification": "完整页面与 199 条模板已核验；生成需配置服务商"
+    },
+    {
+      "id": "mcpro-vox",
+      "name": "MediaCrawlerPro-VoxAgent",
+      "role": "评论研究",
+      "features": "评论采集、逐条标注、统计、可追溯报告、断点继续",
+      "input": "关键词、账号或内容链接及模型配置",
+      "output": "评论证据、标注和 HTML/Markdown/PDF 报告",
+      "depends_on": [
+        "mcpro-python",
+        "mcpro-sign",
+        "mcpro-cookie"
+      ],
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-VoxAgent",
+      "included": true,
+      "source_status": "fetched",
+      "integration_status": "integrated",
+      "bridge": "4318 研究 API + 4319 工作室；连接同一采集 SQLite、CookieBridge 与签名服务；共享报告素材",
+      "verification": "工作室与存储已核验；评论研究需配置模型"
+    },
+    {
+      "id": "mcpro-go",
+      "name": "MediaCrawlerPro-Golang",
+      "role": "Go 版采集器",
+      "features": "Golang 实现，组织说明为开发中",
+      "input": "不适用",
+      "output": "不适用",
+      "depends_on": [],
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-Golang",
+      "included": false,
+      "source_status": "excluded",
+      "integration_status": "excluded",
+      "bridge": "按用户要求排除"
+    },
+    {
+      "id": "mcpro-profile",
+      "name": "MediaCrawlerPro/.github",
+      "role": "组织介绍与资料",
+      "features": "项目清单、架构说明、界面截图",
+      "input": "不适用",
+      "output": "来源资料",
+      "depends_on": [],
+      "repository": "https://github.com/MediaCrawlerPro/.github",
+      "included": true,
+      "source_status": "fetched",
+      "integration_status": "reference",
+      "bridge": "来源介绍与项目清单；版本写入锁定清单，不启动为服务",
+      "verification": "资料已拉取并记录版本"
+    },
+    {
+      "id": "tikhub",
+      "name": "TikHub API",
+      "role": "多平台 API 与播放统计",
+      "features": "1,058 个接口、51 个分组；抖音 App V3 全部 38 个，完整 GET/POST 与 JSON 请求体",
+      "input": "各接口参数、JSON 请求体、手动平台凭据与 API Key",
+      "output": "完整响应、表格、JSON/CSV/Excel；播放、作品与评论可写回本机库",
+      "depends_on": [],
+      "repository": "https://api.tikhub.io/",
+      "included": true,
+      "source_status": "api",
+      "integration_status": "verified",
+      "bridge": "OpenAPI 固定规范与动态工作台；共享请求限额，批量、分页、取消、凭据脱敏及来源隔离",
+      "verification": "2026-11-04：单视频统计及 50 条批量统计真实 HTTP 200；5 次请求补齐 190 条缺失播放量，监控库 644/644 条有播放；其余付费接口尚未逐个实测"
+    },
+    {
+      "id": "douk",
+      "name": "DouK-Downloader 5.8",
+      "role": "现有采集下载引擎",
+      "features": "抖音及 TikTok 的 26 个采集入口、媒体下载与去重",
+      "input": "链接、作品 ID、账号与 Cookie",
+      "output": "详情、互动、媒体与导出文件",
+      "depends_on": [],
+      "repository": "https://github.com/JoeanAmier/TikTokDownloader",
+      "included": true,
+      "source_status": "vendored",
+      "integration_status": "integrated",
+      "bridge": "现有 /studio 与独立 Python 引擎；继续保留"
+    }
+  ]
+}

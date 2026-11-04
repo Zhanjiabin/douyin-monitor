@@ -1,0 +1,15 @@
+[Unit]
+Description=Back up Guanchao metadata and private settings
+
+[Service]
+Type=oneshot
+User=douyin-monitor
+Group=douyin-monitor
+WorkingDirectory=/opt/douyin-monitor
+Environment=TZ=Asia/Shanghai
+ExecStart=/opt/douyin-monitor/.venv/bin/python /opt/douyin-monitor/scripts/server_backup.py
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full

@@ -1,0 +1,15 @@
+TikTokDownloader / DouK-Downloader 5.8
+Author: JoeanAmier and contributors
+Source: https://github.com/JoeanAmier/TikTokDownloader
+Pinned commit: e327b9549d284a8b1613566f949fe2dbb8a6c2a1
+License: GNU General Public License version 3.0
+The complete corresponding upstream source and license are included under
+vendor/TikTokDownloader. Integration changes are in scripts/douk_worker.py,
+src/douk.py and the monitor's web interface. These changes are independent
+of the upstream authors. Preserve these notices and the included license
+when redistributing this integration.
+
+Upstream's Web UI, TikTok comments, hashtag downloads and third-party
+TikTok original-quality menu are disabled/unimplemented in this version.
+The monitor supplies a web UI for the available collection/download features.
+The adapter corrects the upstream TikTok mix route's missing tiktok=True.

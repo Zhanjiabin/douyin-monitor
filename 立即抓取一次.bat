@@ -3,6 +3,12 @@ chcp 65001 >nul
 cd /d "%~dp0"
 title 立即抓取一次（不打开界面）
 
+if exist "%~dp0.venv\Scripts\python.exe" (
+    "%~dp0.venv\Scripts\python.exe" "%~dp0src\pipeline.py"
+    pause
+    goto :eof
+)
+
 where python >nul 2>nul
 if errorlevel 1 (
     echo.

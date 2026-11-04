@@ -10,6 +10,7 @@ import time
 from datetime import datetime, timedelta
 
 import store
+import intelligence
 from config import load_config
 
 
@@ -64,10 +65,11 @@ class Scheduler(threading.Thread):
         if now.strftime("%H:%M") < min(self._times):
             return False
         try:
-            if store.has_data_on(today):
+            account_data = store.q("SELECT 1 FROM runs WHERE status='done' AND failed=0 AND total>0 AND substr(finished_at,1,10)=? LIMIT 1", (today,))
+            if store.has_data_on(today) or account_data:
                 self._fired.add("catchup:" + today)   # 今天已有数据，不再检查
                 return False
-            if not store.active_watch_items():
+            if not store.active_watch_items() and not intelligence.active_tracked_accounts():
                 # 清单为空：不补跑，但也【不】记已检查，
                 # 这样用户当天后续导入链接后仍能被自动补跑
                 return False

@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/JoeanAmier/TikTokDownloader",
+  "commit": "e327b9549d284a8b1613566f949fe2dbb8a6c2a1",
+  "version": "5.8",
+  "license": "GPL-3.0",
+  "source": "vendor/TikTokDownloader",
+  "adapter": "scripts/douk_worker.py",
+  "runtime": "data/douk",
+  "output": "output/downloads"
+}

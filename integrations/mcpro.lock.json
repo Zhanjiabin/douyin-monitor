@@ -1,0 +1,63 @@
+{
+  "excluded": [
+    "MediaCrawlerPro-Golang"
+  ],
+  "projects": [
+    {
+      "name": "MediaCrawlerPro-Python",
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-Python",
+      "commit": "eb7b68ead717921b164bf9878c2f5a50153e37fb",
+      "source": "vendor/MediaCrawlerPro/MediaCrawlerPro-Python",
+      "private": true
+    },
+    {
+      "name": "MediaCrawlerPro-SignSrv",
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-SignSrv",
+      "commit": "77ad9dc78c084e85544b8d162827fa29b3625245",
+      "source": "vendor/MediaCrawlerPro/MediaCrawlerPro-SignSrv",
+      "private": true
+    },
+    {
+      "name": ".github",
+      "repository": "https://github.com/MediaCrawlerPro/.github",
+      "commit": "9f969deaca9b31caf18e3d2ad713ff654052e20c",
+      "source": "vendor/MediaCrawlerPro/.github",
+      "private": false
+    },
+    {
+      "name": "MediaCrawlerPro-Downloader",
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-Downloader",
+      "commit": "35d3ef517b21f797bc8e0fcc5eda624b74323a28",
+      "source": "vendor/MediaCrawlerPro/MediaCrawlerPro-Downloader",
+      "private": true
+    },
+    {
+      "name": "MediaCrawlerPro-ContentRemixAgent",
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-ContentRemixAgent",
+      "commit": "a73bb0edcaba8cb97b5337cba855555c551913e9",
+      "source": "vendor/MediaCrawlerPro/MediaCrawlerPro-ContentRemixAgent",
+      "private": true
+    },
+    {
+      "name": "PicTacticAgent",
+      "repository": "https://github.com/MediaCrawlerPro/PicTacticAgent",
+      "commit": "89a8120765477839fa25d55dbde17fcf3d93a222",
+      "source": "vendor/MediaCrawlerPro/PicTacticAgent",
+      "private": true
+    },
+    {
+      "name": "MediaCrawlerPro-CookieBridge",
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-CookieBridge",
+      "commit": "fcddd00887014a1a57acdd847d337f655f31e46c",
+      "source": "vendor/MediaCrawlerPro/MediaCrawlerPro-CookieBridge",
+      "private": true
+    },
+    {
+      "name": "MediaCrawlerPro-VoxAgent",
+      "repository": "https://github.com/MediaCrawlerPro/MediaCrawlerPro-VoxAgent",
+      "commit": "eb794d173c3d69eb94d140c0e419154b7b0fce4f",
+      "source": "vendor/MediaCrawlerPro/MediaCrawlerPro-VoxAgent",
+      "private": true
+    }
+  ]
+}

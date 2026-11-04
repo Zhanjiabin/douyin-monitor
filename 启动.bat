@@ -16,10 +16,14 @@ if exist "dist\抖音监控\抖音监控.exe" (
 )
 
 rem ---- 2) 退回源码模式，用系统 PATH 里的 python ----
+if exist "%~dp0.venv\Scripts\python.exe" (
+    "%~dp0.venv\Scripts\python.exe" -X utf8 "%~dp0scripts\start_stack.py"
+    goto :eof
+)
 where python >nul 2>nul
 if errorlevel 1 goto nopython
 echo 以源码模式启动 ...
-python "%~dp0src\app.py"
+python -X utf8 "%~dp0scripts\start_stack.py"
 goto :eof
 
 :nopython

@@ -96,16 +96,62 @@ def ai_summary(niche, stage, content_format, frequency):
 
 def init_account_tables():
     store.x("CREATE TABLE IF NOT EXISTS tracked_accounts (sec_uid TEXT PRIMARY KEY, profile_url TEXT NOT NULL, nickname TEXT, note TEXT DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT, last_scan_at TEXT, last_error TEXT)")
+    with store._LOCK:
+        if "role" not in {r["name"] for r in store.q("PRAGMA table_info(tracked_accounts)")}:
+            store.x("ALTER TABLE tracked_accounts ADD COLUMN role TEXT NOT NULL DEFAULT 'unclassified'")
     store.x("CREATE TABLE IF NOT EXISTS tracked_account_videos (aweme_id TEXT PRIMARY KEY, sec_uid TEXT NOT NULL, title TEXT, create_time INTEGER, mix_id TEXT, mix_name TEXT, first_seen TEXT, last_seen TEXT, metric_status TEXT DEFAULT 'unknown')")
     store.x("CREATE INDEX IF NOT EXISTS idx_tav_sec_uid ON tracked_account_videos(sec_uid, create_time)")
     store.x("CREATE TABLE IF NOT EXISTS account_video_snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, aweme_id TEXT NOT NULL, fetch_date TEXT NOT NULL, fetched_at TEXT NOT NULL, play_count INTEGER, digg_count INTEGER, comment_count INTEGER, share_count INTEGER, collect_count INTEGER, metric_status TEXT NOT NULL, source TEXT NOT NULL, UNIQUE(aweme_id,fetch_date))")
     store.x("CREATE INDEX IF NOT EXISTS idx_avs_aweme ON account_video_snapshots(aweme_id,fetch_date)")
     store.x("CREATE TABLE IF NOT EXISTS tracked_account_mix_scans (sec_uid TEXT NOT NULL, mix_id TEXT NOT NULL, last_create_time INTEGER, scanned_at TEXT, PRIMARY KEY(sec_uid,mix_id))")
+    store.x("CREATE TABLE IF NOT EXISTS playback_checks (mix_id TEXT PRIMARY KEY, status TEXT NOT NULL, message TEXT, checked_at TEXT NOT NULL)")
+    with store._LOCK:
+        migrations = {
+            "tracked_accounts": {"avatar_path":"TEXT", "homepage_count":"INTEGER", "follower_count":"INTEGER", "total_favorited":"INTEGER", "scan_status":"TEXT", "scan_pages":"INTEGER", "scan_has_more":"INTEGER", "playback_warning":"TEXT"},
+            "tracked_account_videos": {"cover_path":"TEXT"},
+        }
+        for table, columns in migrations.items():
+            existing = {r["name"] for r in store.q(f"PRAGMA table_info({table})")}
+            for column, kind in columns.items():
+                if column not in existing:
+                    store.x(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+        # Older versions put optional playback warnings in the account failure field.
+        store.x("UPDATE tracked_accounts SET playback_warning=last_error,last_error=NULL WHERE last_error LIKE '作品已发现；%'")
 
-def add_account(profile_url, note=""):
+
+def save_playback_check(mix_id, status, message):
+    init_account_tables()
+    store.x("INSERT INTO playback_checks(mix_id,status,message,checked_at) VALUES(?,?,?,?) ON CONFLICT(mix_id) DO UPDATE SET status=excluded.status,message=excluded.message,checked_at=excluded.checked_at",
+            (mix_id,status,message,store.now_str()))
+
+
+def save_discovery(sec_uid, discovered):
+    from media_cache import cache_images
+    profile = discovered.get("profile") or {}
+    posts = discovered.get("items") or []
+    save_account_posts(sec_uid, discovered.get("author_name"), posts)
+    # The database is saved before thumbnail requests, which are optional.
+    store.x("UPDATE tracked_accounts SET homepage_count=COALESCE(?,homepage_count),follower_count=COALESCE(?,follower_count),total_favorited=COALESCE(?,total_favorited),scan_status=?,scan_pages=?,scan_has_more=?,playback_warning=NULL WHERE sec_uid=?",
+            (profile.get("homepage_count"), profile.get("follower_count"), profile.get("total_favorited"), discovered.get("scan_status"), discovered.get("scan_pages"), int(bool(discovered.get("has_more"))), sec_uid))
+    images = cache_images([profile.get("avatar_url")] + [p.get("cover_url") for p in posts])
+    avatar = images.get(profile.get("avatar_url"))
+    if avatar:
+        store.x("UPDATE tracked_accounts SET avatar_path=? WHERE sec_uid=?", (avatar, sec_uid))
+    for post in posts:
+        cover = images.get(post.get("cover_url"))
+        if cover:
+            store.x("UPDATE tracked_account_videos SET cover_path=? WHERE aweme_id=?", (cover, post["aweme_id"]))
+
+def add_account(profile_url, note="", role=None):
     import re
     from urllib.parse import urlparse
     url=(profile_url or "").strip()
+    if role is not None and role not in ("own", "peer", "unclassified"):
+        raise ValueError("账号类型无效")
+    if "/" in url:
+        parsed = urlparse(url)
+        if parsed.scheme != "https" or parsed.hostname not in ("www.douyin.com", "douyin.com"):
+            raise ValueError("请输入 https://www.douyin.com/user/ 开头的账号主页")
     match=re.search(r"/user/([^/?#]+)",url)
     sec_uid=match.group(1) if match else (url if re.fullmatch(r"[A-Za-z0-9_=-]{12,}",url) else "")
     if not sec_uid or not re.fullmatch(r"[A-Za-z0-9_=-]{12,}",sec_uid):
@@ -114,6 +160,32 @@ def add_account(profile_url, note=""):
     init_account_tables()
     store.x("INSERT INTO tracked_accounts(sec_uid,profile_url,note,created_at) VALUES(?,?,?,?) ON CONFLICT(sec_uid) DO UPDATE SET profile_url=excluded.profile_url,note=CASE WHEN excluded.note='' THEN tracked_accounts.note ELSE excluded.note END",
       (sec_uid,canonical,note or "",store.now_str()))
+    if role is not None:
+        set_account_role(sec_uid, role)
+    return list_tracked_accounts()
+
+
+def set_account_role(sec_uid, role):
+    if role not in ("own", "peer", "unclassified"):
+        raise ValueError("账号类型无效")
+    init_account_tables()
+    if not store.q("SELECT 1 FROM tracked_accounts WHERE sec_uid=?", (sec_uid,)):
+        raise ValueError("账号不存在")
+    store.x("UPDATE tracked_accounts SET role=? WHERE sec_uid=?", (role, sec_uid))
+
+
+def update_account_settings(sec_uid, note, role, enabled):
+    if role not in ("own", "peer", "unclassified"):
+        raise ValueError("账号类型无效")
+    if not isinstance(note, str) or len(note) > 60:
+        raise ValueError("备注最多 60 个字符")
+    if not isinstance(enabled, bool):
+        raise ValueError("请选择监控状态")
+    init_account_tables()
+    if not store.q("SELECT 1 FROM tracked_accounts WHERE sec_uid=?", (sec_uid,)):
+        raise ValueError("账号不存在")
+    store.x("UPDATE tracked_accounts SET note=?,role=?,enabled=? WHERE sec_uid=?",
+            (note.strip(), role, int(enabled), sec_uid))
     return list_tracked_accounts()
 
 def list_tracked_accounts():
@@ -201,13 +273,19 @@ def video_history(aweme_id):
     account=store.q("SELECT fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,metric_status FROM account_video_snapshots WHERE aweme_id=? ORDER BY fetch_date",(aid,))
     by={x["fetch_date"]:x for x in account}
     for x in mix: by[x["fetch_date"]]=x
-    return [by[k] for k in sorted(by)]
+    rows = [by[k] for k in sorted(by)]
+    if store.q("SELECT name FROM sqlite_master WHERE type='table' AND name='external_video_observations'"):
+        rows += store.q("SELECT fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,source metric_status FROM external_video_observations WHERE aweme_id=?", (aid,))
+    if store.q("SELECT name FROM sqlite_master WHERE type='table' AND name='playback_measurements'"):
+        rows += store.q("SELECT fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,source metric_status,scope FROM playback_measurements WHERE aweme_id=?", (aid,))
+    return sorted(rows, key=lambda r: (r['fetch_date'], r.get('fetched_at') or ''))
 
 def account_mix_needs_scan(sec_uid, mix_id, latest_create_time):
     init_account_tables()
-    rows=store.q("SELECT last_create_time FROM tracked_account_mix_scans WHERE sec_uid=? AND mix_id=?",(sec_uid,mix_id))
+    rows=store.q("SELECT last_create_time,scanned_at FROM tracked_account_mix_scans WHERE sec_uid=? AND mix_id=?",(sec_uid,mix_id))
     if not rows: return True
-    return int(latest_create_time or 0)>int(rows[0].get("last_create_time") or 0)
+    return ((rows[0].get("scanned_at") or "")[:10] != store.today_str()
+            or int(latest_create_time or 0)>int(rows[0].get("last_create_time") or 0))
 
 def mark_account_mix_scanned(sec_uid, mix_id, latest_create_time):
     init_account_tables()

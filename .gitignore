@@ -10,8 +10,18 @@ build/
 data/
 logs/
 output/
+# 仅保留页面下载所需的项目清单，其余生成物不入库。
+outputs/*
+!outputs/01a1a206-0159-7d73-836a-2c0d96ac52d4/
+outputs/01a1a206-0159-7d73-836a-2c0d96ac52d4/*
+!outputs/01a1a206-0159-7d73-836a-2c0d96ac52d4/项目接入清单.xlsx
 .browser_profile/
 config.json
+deploy/server.env
+.env
+.env.*
+!.env.example
+!.env.sample
 
 # 内部资料：开发过程与设计记录，不属于「下载即用」的内容
 .workbuddy/
@@ -31,6 +41,11 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.douk-venv/
+node_modules/
+vendor/MediaCrawlerPro/
+vendor/TikTokDownloader/Volume/
+vendor/TikTokDownloader/.venv/
 venv/
 env/
 
