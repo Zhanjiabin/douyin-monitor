@@ -9,18 +9,65 @@ const roleNames={own:'自有账号',peer:'同行账号',unclassified:'未分组'
 const colors=['#a394ce','#86aaa0','#a6aec9','#c6a78b','#c09cad','#8fa3be','#bbb9bf'];
 let data={accounts:[],videos:[],features:[],topics:[],trend:[],stats:{}},pageName='overview',sort='published',expanded=false,pageIndex=0,pageSize=50,requestVersion=0,running=false,detailVersion=0,hasLoaded=false;
 const filters={days:30,role:'all',account:'',topic:'',query:''};
+let renderedFilters={...filters},trendView='chart',trendRows=[];
 let filterOptionsReady=false;
 async function api(path,body){const r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const value=await r.json();if(!r.ok||value.error)throw Error(value.error||'请求失败');return value}
 function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),3200)}
 function empty(text='暂无数据'){return `<div class="empty">${text}</div>`}
 function name(a){return a.nickname||a.note||'未命名账号'}
-async function refresh(){const version=++requestVersion;try{const next=await api('/api/insights?'+new URLSearchParams(filters));if(version!==requestVersion)return false;data=next;hasLoaded=true;render();return true}catch(e){if(version===requestVersion)toast(e.message);return false}}
+async function refresh(){const version=++requestVersion,query={...filters};try{const next=await api('/api/insights?'+new URLSearchParams(query));if(version!==requestVersion)return false;data=next;renderedFilters=query;hasLoaded=true;render();return true}catch(e){if(version===requestVersion)toast(e.message);return false}}
 const published=n=>n?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(n*1000)):'—';
 const avatar=(path,label)=>path?`<img class="avatar" src="${esc(path)}" alt="" loading="lazy">`:`<span class="avatar placeholder">${esc((label||'未')[0])}</span>`;
 function render(){renderStats();renderRank();renderTrend();renderFilters();}
 
 function renderFilters(){const current=$('#accountFilter').value;$('#accountFilter').innerHTML='<option value="">全部账号</option>'+data.accounts.map(a=>`<option value="${esc(a.sec_uid)}">${esc(name(a))}</option>`).join('');$('#accountFilter').value=current;if(!filterOptionsReady){const ts=new Set(['逆袭复仇','都市情感','古装穿越','悬疑探案','家庭伦理','奇幻异能','未识别']);$('#topicFilter').innerHTML='<option value="">全部题材</option>'+[...ts].map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');filterOptionsReady=true;}}
-function renderTrend(){if(pageName!=='overview')return;const points=data.trend;const ready=points.some(p=>p.own!=null||p.peer!=null);$('.chart-grid').hidden=!ready;if(!ready){$('#trendWrap').innerHTML='';return}$('#trendWrap').innerHTML='<svg class="chart" id="trendChart" role="img" aria-label="每日可比作品播放增量"></svg>';const svg=$('#trendChart'),w=Math.max(svg.clientWidth,300),h=145,L=45,R=18,T=15,B=32,max=Math.max(...points.flatMap(p=>[p.own||0,p.peer||0]),1)*1.12,x=i=>L+i*(w-L-R)/(points.length-1),y=v=>h-B-v/max*(h-T-B);svg.setAttribute('viewBox',`0 0 ${w} ${h}`);let html='';for(let i=0;i<=4;i++){let Y=y(max*i/4);html+=`<line class="gridline" x1="${L}" x2="${w-R}" y1="${Y}" y2="${Y}"/><text x="${L-8}" y="${Y+3}" text-anchor="end">${fmt(max*i/4)}</text>`}points.forEach((p,i)=>{if(i===0||i===points.length-1||i%Math.ceil(points.length/5)===0)html+=`<text x="${x(i)}" y="${h-9}" text-anchor="middle">${esc(p.date.slice(5).replace('-','/'))}</text>`});for(const [key,color] of [['own','#9481cb'],['peer','#87afa1']]){let path='',active=false;points.forEach((p,i)=>{if(p[key]==null){active=false;return}path+=`${active?'L':'M'}${x(i)},${y(p[key])} `;active=true;html+=`<circle cx="${x(i)}" cy="${y(p[key])}" r="2" fill="${color}"/>`});html+=`<path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>`}points.forEach((p,i)=>{html+=`<rect data-point="${i}" x="${x(i)-(w-L-R)/(points.length-1)/2}" y="${T}" width="${(w-L-R)/(points.length-1)}" height="${h-T-B}" fill="transparent"/>`});svg.innerHTML=html;$$('[data-point]').forEach(el=>{el.addEventListener('pointermove',e=>{const p=points[Number(el.dataset.point)],tip=$('#chartTooltip');tip.innerHTML=`<b>${esc(p.date)}</b><span>自有 ${fmt(p.own)} / ${p.own_n} 条</span><span>同行均值 ${fmt(p.peer)} / ${p.peer_accounts} 个账号、${p.peer_n} 条</span>`;tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-240)+'px';tip.style.top=Math.max(10,e.clientY-95)+'px'});el.addEventListener('pointerleave',()=>$('#chartTooltip').style.display='none')})}
+function hasTrendValue(p){return Number.isFinite(p.own)||Number.isFinite(p.peer)}
+function renderTrend(){
+  const dialog=$('#trendDialog');if(!dialog.open)return;
+  const points=data.trend||[];trendRows=points.filter(hasTrendValue);
+  const canPlot=trendRows.length>=2,view=canPlot?trendView:'daily';
+  const scope=[data.start&&data.end?data.start+' 至 '+data.end:'',roleNames[renderedFilters.role]||'全部账号'];
+  if(renderedFilters.account){const a=data.accounts.find(a=>a.sec_uid===renderedFilters.account);scope.push(a?name(a):renderedFilters.account)}
+  if(renderedFilters.topic)scope.push(renderedFilters.topic);
+  if(renderedFilters.query)scope.push('关键词：'+renderedFilters.query);
+  $('#trendScope').textContent=scope.filter(Boolean).join(' · ');$('#trendScope').title=$('#trendScope').textContent;
+  $('#trendChartTab').disabled=!canPlot;$('#trendDailyTab').disabled=!trendRows.length;$('#exportTrend').disabled=!trendRows.length;
+  $$('[data-trend-view]').forEach(b=>{const on=b.dataset.trendView===view;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1});
+  $('#trendChartView').hidden=!canPlot||view!=='chart';$('#trendDailyView').hidden=!trendRows.length||view!=='daily';
+  $('#trendEmpty').hidden=!!trendRows.length;$('#trendAvailability').hidden=trendRows.length!==1;
+  $('#trendAvailability').textContent=trendRows.length===1?'目前仅 '+trendRows[0].date+' 有可比增长，先展示这一天的明细。':'';
+  $('#trendDailyRows').innerHTML=trendRows.slice().reverse().map(p=>`<tr><td>${esc(p.date)}</td><td class="own">${fmt(p.own)}</td><td>${p.own_n||0} 条</td><td class="peer">${fmt(p.peer)}</td><td>${p.peer_accounts||0} 个账号 · ${p.peer_n||0} 条</td></tr>`).join('');
+  if(!canPlot||view!=='chart'){$('#trendWrap').innerHTML='';return}
+  const first=points.findIndex(hasTrendValue),last=points.reduce((last,p,i)=>hasTrendValue(p)?i:last,first),visible=points.slice(first,last+1);
+  const wrap=$('#trendWrap'),w=Math.max(wrap.clientWidth,280),h=wrap.clientHeight||240,L=w<450?44:58,R=23,T=16,B=32;
+  const raw=Math.max(...visible.flatMap(p=>[p.own||0,p.peer||0]),1),power=10**Math.floor(Math.log10(raw));
+  const max=[1,2,2.5,5,10].find(n=>n*power>=raw)*power;
+  const x=i=>L+i*(w-L-R)/Math.max(1,visible.length-1),y=v=>h-B-v/max*(h-T-B);
+  const tick=Math.max(1,Math.ceil(visible.length/(w<450?3:6)));
+  let html='<title>每日可比作品播放增量</title>';
+  for(let i=0;i<=4;i++){const Y=y(max*i/4);html+=`<line class="trend-grid" x1="${L}" x2="${w-R}" y1="${Y}" y2="${Y}"/><text x="${L-10}" y="${Y+3}" text-anchor="end">${fmt(max*i/4)}</text>`}
+  visible.forEach((p,i)=>{if(i===0||i===visible.length-1||(i%tick===0&&i<visible.length-tick/2))html+=`<text x="${x(i)}" y="${h-8}" text-anchor="middle">${esc(p.date.slice(5).replace('-','/'))}</text>`});
+  for(const [key,color] of [['own','#2b7fa7'],['peer','#269e86']]){
+    let path='',connected=false;
+    visible.forEach((p,i)=>{if(!Number.isFinite(p[key])){connected=false;return}path+=`${connected?'L':'M'}${x(i)},${y(p[key])} `;connected=true});
+    html+=`<path data-trend-series="${key}" d="${path}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round"/>`;
+    visible.forEach((p,i)=>{if(Number.isFinite(p[key]))html+=`<circle cx="${x(i)}" cy="${y(p[key])}" r="3.2" fill="${color}" stroke="#fff" stroke-width="1.4"/>`});
+  }
+  html+=`<line id="trendMarker" class="trend-marker" x1="${x(visible.length-1)}" x2="${x(visible.length-1)}" y1="${T}" y2="${h-B}"/>`;
+  const step=(w-L-R)/Math.max(1,visible.length-1);
+  visible.forEach((p,i)=>{html+=`<rect data-trend-point="${i}" tabindex="0" role="button" aria-label="${esc(p.date)}：自有增长 ${fmt(p.own)}，同行账号均值 ${fmt(p.peer)}" x="${Math.max(L,x(i)-step/2)}" y="${T}" width="${i===0||i===visible.length-1?step/2:step}" height="${h-T-B}" fill="transparent"/>`});
+  wrap.innerHTML=`<svg id="trendChart" viewBox="0 0 ${w} ${h}" role="img" aria-label="每日可比作品播放增量">${html}</svg>`;
+  const show=i=>{const p=visible[i],line=$('#trendMarker');line.setAttribute('x1',x(i));line.setAttribute('x2',x(i));$('#trendPointDetail').innerHTML=`<b>${esc(p.date)}</b><span>自有增长 <b>${fmt(p.own)}</b><small>${p.own_n||0} 条作品</small></span><span>同行账号均值 <b>${fmt(p.peer)}</b><small>${p.peer_accounts||0} 个账号 · ${p.peer_n||0} 条</small></span>`};
+  show(visible.length-1);
+  wrap.onpointermove=trendPointEvent;wrap.onpointerdown=trendPointEvent;wrap.querySelectorAll('[data-trend-point]').forEach(point=>point.onfocus=trendPointEvent);
+  function trendPointEvent(e){const point=e.target.closest('[data-trend-point]');if(point)show(Number(point.dataset.trendPoint))}
+}
+function exportTrend(){
+  const rows=[['日期','自有总增长','自有作品数','同行账号平均增长','同行账号数','同行作品数'],...trendRows.map(p=>[p.date,p.own,p.own_n,p.peer,p.peer_accounts,p.peer_n])];
+  const csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');
+  a.href=url;a.download=`播放增长-${data.start}-${data.end}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
 function ranked(){const key={published:'create_time',likes:'digg_count',growth:'daily_growth',play:'play_count'}[sort];return data.videos.slice().sort((a,b)=>((b[key]??-Infinity)-(a[key]??-Infinity))||(b.create_time||0)-(a.create_time||0))}
 function renderStats(){$('#scanNotice').textContent='更新于 '+(data.generated_at||'').slice(0,16).replace('T',' ');}
 
@@ -32,6 +79,10 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-page
 $('#screenFilterForm').onsubmit=async e=>{e.preventDefault();filters.days=Number($('#period').value);filters.role=$('#roleFilter').value;filters.account=$('#accountFilter').value;filters.topic=$('#topicFilter').value;filters.query=$('#searchInput').value.trim();sort=$('#sortFilter').value;pageIndex=0;$('#screenFilterState').textContent='正在搜索…';const ok=await refresh();$('#screenFilterState').textContent=ok?'已应用所选条件':'搜索失败，请重试';};
 $('#screenFilterForm').onreset=e=>{e.preventDefault();$('#period').value='30';$('#roleFilter').value='all';$('#accountFilter').value='';$('#topicFilter').value='';$('#searchInput').value='';$('#sortFilter').value='published';$('#screenFilterForm').requestSubmit();};
 $('#screenFilterForm').addEventListener('input',()=>$('#screenFilterState').textContent='条件已修改，点击搜索后生效');
+$('#openTrend').onclick=()=>{Guanchao.openDialog($('#trendDialog'));renderTrend()};
+$('#closeTrend').onclick=()=>$('#trendDialog').close();$('#exportTrend').onclick=exportTrend;
+$$('[data-trend-view]').forEach(b=>b.onclick=()=>{trendView=b.dataset.trendView;renderTrend()});
+$('.screen-trend-tabs').onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;const tabs=$$('[data-trend-view]').filter(b=>!b.disabled),i=tabs.indexOf(document.activeElement);if(i<0)return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[next].focus();tabs[next].click()};
 $('#exportButton').onclick=exportCSV;$('#reloadSnapshot').onclick=()=>refresh();['methodButton','footerMethod'].forEach(id=>document.getElementById(id).onclick=()=>$('#methodDialog').showModal());
 window.addEventListener('gc-data-updated',()=>refresh());
 $('#fullscreenButton').onclick=async()=>{const next=!document.body.classList.contains('presentation');document.body.classList.toggle('presentation',next);$('#screenLabel').textContent=next?'退出大屏':'大屏';try{if(next)await document.documentElement.requestFullscreen();else if(document.fullscreenElement)await document.exitFullscreen()}catch{}renderTrend()};document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement){document.body.classList.remove('presentation');$('#screenLabel').textContent='大屏';renderTrend()}});document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('.sidebar').classList.remove('mobile-open');if(!document.fullscreenElement){document.body.classList.remove('presentation');$('#screenLabel').textContent='大屏'}}});window.addEventListener('resize',renderTrend);window.addEventListener('hashchange',()=>go(location.hash.slice(1),false));window.addEventListener('popstate',()=>go(location.hash.slice(1),false));go(location.hash.slice(1)||'overview',false);refresh();setInterval(()=>{if(!document.hidden&&!document.querySelector('dialog[open]'))refresh()},15000);

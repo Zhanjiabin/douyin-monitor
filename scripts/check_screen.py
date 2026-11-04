@@ -56,7 +56,11 @@ with tempfile.TemporaryDirectory() as folder:
             page.reload()
             page.wait_for_selector("#rankBody [data-video]")
             assert page.locator("#rankBody tr").count() == 1
+            assert page.locator("#page-overview .chart-grid").count()==0
+            assert not page.locator("#trendDialog").is_visible()
+            page.click("#openTrend")
             page.wait_for_function("document.querySelectorAll('#trendChart circle').length === 2")
+            page.click("#closeTrend")
             page.context.route("https://www.douyin.com/**",lambda route:route.fulfill(status=200,body="<html>External destination fixture</html>"))
             with page.expect_popup() as opened:
                 page.locator("#rankBody .table-title").first.click()
