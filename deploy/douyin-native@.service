@@ -1,0 +1,28 @@
+[Unit]
+Description=Guanchao optional native service (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=douyin-monitor
+Group=douyin-monitor
+WorkingDirectory=/opt/douyin-monitor
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=TZ=Asia/Shanghai
+Environment=PATH=/opt/douyin-monitor/data/native-runtime/node/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/opt/douyin-monitor/.venv/bin/python /opt/douyin-monitor/scripts/native_service.py %i
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+StandardOutput=append:/opt/douyin-monitor/logs/native-%i.log
+StandardError=inherit
+
+[Install]
+WantedBy=multi-user.target

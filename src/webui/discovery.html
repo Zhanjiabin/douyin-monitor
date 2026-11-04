@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>发现 · 观潮</title><link rel="stylesheet" href="/screen.css"><link rel="stylesheet" href="/shell.css"><link rel="stylesheet" href="/product.css"><link rel="stylesheet" href="/discovery.css"></head>
+<body data-app="discovery"><aside class="sidebar"></aside><div class="shell"><header class="topbar"><div class="topbar-title"><b>发现</b></div><span class="muted" id="discoveryUpdated"></span></header>
+<main class="discovery-main">
+<nav class="discovery-tabs" aria-label="发现视图"><a href="#works" data-view="works">作品发现</a><a href="#hot" data-view="hot">热点趋势</a><a href="#keywords" data-view="keywords">关键词追踪</a></nav>
+<form id="discoveryFilters" class="discovery-filters">
+<label><span>关键词</span><input id="discoveryKeyword" name="keyword" placeholder="搜索标题、热点或关键词" maxlength="80"></label>
+<label><span>数据类型</span><select id="discoverySource" name="source"></select></label>
+<label id="categoryField"><span>平台分类</span><select id="discoveryCategory" name="category"><option value="">全部分类</option></select></label>
+<label id="windowField"><span>榜单周期</span><select name="window"><option value="168">近七天榜单</option><option value="72">近三天榜单</option><option value="24">近一天榜单</option><option value="1">近一小时榜单</option></select></label>
+<label id="daysField" hidden><span>发布时间</span><select name="days"><option value="7">近七天发布</option><option value="3">近三天发布</option><option value="30">近一个月发布</option><option value="0">不限发布时间</option></select></label>
+<div class="filter-buttons"><button class="btn primary" type="submit">搜索</button><button class="btn" type="reset">重置</button><button class="text-link" id="discoveryExpand" type="button" aria-expanded="false">展开筛选</button></div>
+<div class="discovery-extra" id="discoveryExtra" hidden><label id="durationField"><span>视频时长</span><select name="duration"><option value="0">不限时长</option><option value="1">15 秒以内</option><option value="6">15–60 秒</option><option value="7">1–2 分钟</option><option value="8">2–3 分钟</option><option value="9">3 分钟以上</option></select></label><label><span>结果内作者粉丝上限</span><input name="max_fans" type="number" min="0" placeholder="不限"></label><label><span>结果排序</span><select name="local_sort"><option value="rank">原始排名</option><option value="new">最新发布</option><option value="likes">点赞最高</option></select></label></div>
+<div id="dateFields" class="date-fields" hidden><label><span>开始日期</span><input type="date" name="start_date"></label><label><span>结束日期</span><input type="date" name="end_date"></label></div>
+</form>
+<div class="discovery-toolbar"><div class="toolbar-left"><button class="btn primary" id="discoveryFetch">抓取最新</button><button class="btn" id="discoveryMonitor" disabled>加入监控</button><button class="btn" id="discoveryMore" hidden>抓取更多</button><button class="btn" id="discoverySchedule">定时更新</button><a class="btn" id="discoveryExport" href="#">导出</a></div><span id="discoveryFeedback" role="status"></span></div>
+<div class="request-inline" id="discoveryQuote" hidden></div><p class="discovery-error" id="discoveryError" role="alert"></p>
+<section class="discovery-panel" id="discoveryResults"><div class="discovery-table-wrap"><table id="discoveryTable"><thead></thead><tbody></tbody></table></div><div id="discoveryPager"></div></section>
+<section id="keywordView" hidden><form class="keyword-add" id="addKeyword"><input name="keyword" aria-label="新增追踪关键词" placeholder="新增关键词，例如：末日" maxlength="80" required><button class="btn primary">添加追踪</button></form><div class="discovery-panel"><table class="keyword-table"><thead><tr><th>追踪词</th><th>最近采集</th><th>操作</th></tr></thead><tbody id="keywordRows"></tbody></table><div id="keywordPager"></div></div></section>
+<div id="industryView" hidden></div>
+</main></div><div id="toast" class="toast" role="status"></div>
+<script src="/shell.js"></script><script src="/product.js"></script><script src="/audience.js"></script><script src="/discovery.js"></script></body></html>

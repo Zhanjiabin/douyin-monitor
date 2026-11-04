@@ -63,7 +63,7 @@ with tempfile.TemporaryDirectory(prefix='pagination-') as temp:
                 pager.locator('[data-pager-go]').click()
             page.goto(base+'/home')
             expect(page.locator('.home-account-card')).to_have_count(12)
-            assert page.locator('.gc-nav a').count()==5
+            assert page.locator('.gc-nav a').count()==6
             assert '监控账号' not in page.locator('.gc-nav').inner_text()
             jump('#homePagination',3)
             expect(page.locator('.home-account-card')).to_have_count(1)

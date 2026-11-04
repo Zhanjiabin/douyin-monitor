@@ -271,4 +271,9 @@ class MonitorScheduler(threading.Thread):
                 tick()
             except Exception:
                 self.log("播放定时监控本轮检查失败；未自动提交请求")
+            try:
+                import discovery
+                discovery.tick()
+            except Exception:
+                self.log("发现定时更新本轮检查失败；未自动提交请求")
             self._stop_event.wait(15)

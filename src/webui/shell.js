@@ -15,6 +15,7 @@
   const nav = [
     ['/home','工作台','grid'],
     ['/screen#overview','作品监控','grid','overview'],
+    ['/discover','发现','chart'],
     ['/research','内容研究','text'], ['/collect','采集中心','task'], ['/assets','素材库','media']
   ];
   const svg = key => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[key]}"/></svg>`;
@@ -29,7 +30,7 @@
   menu.onclick=()=>{const open=document.body.classList.toggle('gc-nav-open');menu.setAttribute('aria-expanded',String(open))};backdrop.onclick=close;
   document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
   sidebar.addEventListener('click',e=>{if(e.target.closest('a'))close()});
-  function selected(){let target=location.pathname+location.hash;if(location.pathname==='/screen'&&!location.hash)target='/screen#overview';if(location.pathname==='/settings'||['/workspace','/studio','/manage','/tikhub'].includes(location.pathname))target='/settings';sidebar.querySelectorAll('.gc-nav a,.gc-settings').forEach(a=>{const on=a.getAttribute('href')===target;a.classList.toggle('is-active',on);if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')})}
+  function selected(){let target=location.pathname+location.hash;if(location.pathname==='/discover')target='/discover';if(location.pathname==='/screen'&&!location.hash)target='/screen#overview';if(location.pathname==='/settings'||['/workspace','/studio','/manage','/tikhub'].includes(location.pathname))target='/settings';sidebar.querySelectorAll('.gc-nav a,.gc-settings').forEach(a=>{const on=a.getAttribute('href')===target;a.classList.toggle('is-active',on);if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')})}
   addEventListener('hashchange',selected);addEventListener('popstate',selected);addEventListener('gc-route-change',selected);selected();
   const originalFetch=window.fetch.bind(window);
   window.fetch=async(...args)=>{const response=await originalFetch(...args);if(response.status===401){location.replace('/login?next='+encodeURIComponent(location.pathname+location.search+location.hash));}return response;};

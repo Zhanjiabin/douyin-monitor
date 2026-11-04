@@ -24,6 +24,7 @@ import integrations
 import corpus
 import store
 import auth
+import discovery
 from config import (ROOT, WEBUI_DIR, ensure_dirs, load_config, resolve_output_dir,
                     save_config)
 from pipeline import run_once
@@ -225,6 +226,31 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file("workbench.html")
             if path in ("/workbench.js", "/workbench.css", "/monitoring-settings.js", "/screen-refresh.js", "/product.js", "/product.css"):
                 return self._file(path[1:])
+            if path == "/discover":
+                return self._file("discovery.html")
+            if path in ("/discovery.js", "/discovery.css", "/audience.js"):
+                return self._file(path[1:])
+            if path == "/api/discovery/catalog":
+                return self._json(discovery.catalog())
+            if path == "/api/discovery/rules":
+                return self._json(discovery.rules())
+            if path == "/api/discovery/watches":
+                return self._json(discovery.watches())
+            if path in ("/api/discovery/cache", "/api/discovery/export"):
+                args = parse_qs(urlparse(self.path).query)
+                try:
+                    query = json.loads(args.get("query", ["{}"])[0])
+                    if path.endswith("/cache"):
+                        return self._json(discovery.cached(query))
+                    body, ctype = discovery.export(query, args.get("format", ["csv"])[0])
+                except ValueError as exc:
+                    return self._json({"error": str(exc)}, 400)
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Disposition", 'attachment; filename="discovery-export.' + ("json" if ctype.startswith("application/json") else "csv") + '"')
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                return self.wfile.write(body)
             if path == "/api/workbench/state":
                 return self._json(workbench.state())
             if path == "/api/monitoring/status":
@@ -445,12 +471,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": str(exc)}, 401)
         except Exception:
             return self._json({"error": "登录服务暂不可用"}, 503)
-        if not auth_on and path.startswith(("/api/douk/", "/api/playback/", "/api/integrations/", "/api/tikhub/", "/api/workbench/", "/api/monitoring/")):
+        if not auth_on and path.startswith(("/api/douk/", "/api/playback/", "/api/integrations/", "/api/tikhub/", "/api/workbench/", "/api/monitoring/", "/api/discovery/")):
             origin = self.headers.get("Origin")
             if origin and origin != "http://" + self.headers.get("Host", ""):
                 return self._json({"error": "只接受本机页面发起的操作"}, 403)
         data = self._body()
         try:
+            if path == "/api/discovery/plan":
+                return self._json(discovery.plan(data))
+            if path == "/api/discovery/submit":
+                return self._json(discovery.submit(data), 202)
+            if path == "/api/discovery/settings":
+                return self._json(discovery.save_settings(data))
+            if path == "/api/discovery/watches":
+                return self._json(discovery.watches(data))
+            if path == "/api/discovery/rules":
+                return self._json(discovery.save_rule(data))
             if path == "/api/monitoring/settings":
                 return self._json(monitoring.save(data))
             if path == "/api/monitoring/preview":
@@ -608,6 +644,7 @@ def serve(port=None, open_browser=True):
     douk.init_tables()
     playback.init()
     corpus.init()
+    discovery.init()
     n = store.reap_stale_runs()
     if n:
         STATE.log(f"清理了 {n} 条上次异常退出留下的运行记录")

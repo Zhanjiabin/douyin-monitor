@@ -1,0 +1,1412 @@
+{
+  "source": "https://api.tikhub.io/#/Douyin-Billboard-API/fetch_content_tag_api_v1_douyin_billboard_fetch_content_tag_get",
+  "verified_at": "2026-11-04",
+  "categories": [
+    {
+      "label": "美食",
+      "value": 628,
+      "count": 0,
+      "children": [
+        {
+          "label": "品酒教学",
+          "value": 62808
+        },
+        {
+          "label": "美食教程",
+          "value": 62804
+        },
+        {
+          "label": "美食知识",
+          "value": 62806
+        },
+        {
+          "label": "美食测评",
+          "value": 62803
+        },
+        {
+          "label": "美食展示",
+          "value": 62802
+        },
+        {
+          "label": "美食探店",
+          "value": 62801
+        },
+        {
+          "label": "美食其他",
+          "value": 62811
+        },
+        {
+          "label": "饮食文化",
+          "value": 62807
+        },
+        {
+          "label": "吃播",
+          "value": 62805
+        },
+        {
+          "label": "美食营销",
+          "value": 62810
+        }
+      ]
+    },
+    {
+      "label": "旅行",
+      "value": 629,
+      "count": 0,
+      "children": [
+        {
+          "label": "旅行风景",
+          "value": 62905
+        },
+        {
+          "label": "旅行记录与分享",
+          "value": 62913
+        },
+        {
+          "label": "旅行推荐与攻略",
+          "value": 62912
+        },
+        {
+          "label": "户外生活",
+          "value": 62908
+        },
+        {
+          "label": "旅行机构营销",
+          "value": 62906
+        },
+        {
+          "label": "酒店/民宿",
+          "value": 62907
+        },
+        {
+          "label": "旅行日常",
+          "value": 62904
+        },
+        {
+          "label": "旅行其他",
+          "value": 62909
+        },
+        {
+          "label": "旅行营销",
+          "value": 62911
+        },
+        {
+          "label": "旅行文化",
+          "value": 62903
+        },
+        {
+          "label": "旅行见闻",
+          "value": 62910
+        },
+        {
+          "label": "旅行攻略",
+          "value": 62902
+        },
+        {
+          "label": "旅行推荐",
+          "value": 62901
+        }
+      ]
+    },
+    {
+      "label": "休闲娱乐",
+      "value": 634,
+      "count": 0,
+      "children": [
+        {
+          "label": "逛街",
+          "value": 63407
+        },
+        {
+          "label": "现场演出",
+          "value": 63412
+        },
+        {
+          "label": "传统休闲",
+          "value": 63410
+        },
+        {
+          "label": "演出二创&资讯",
+          "value": 63406
+        },
+        {
+          "label": "运动玩乐",
+          "value": 63411
+        },
+        {
+          "label": "采摘/农家乐",
+          "value": 63414
+        },
+        {
+          "label": "实操技巧",
+          "value": 63404
+        },
+        {
+          "label": "保健养生",
+          "value": 63413
+        },
+        {
+          "label": "休娱其他",
+          "value": 63408
+        },
+        {
+          "label": "IP评测&科普",
+          "value": 63402
+        },
+        {
+          "label": "推理桌游",
+          "value": 63409
+        },
+        {
+          "label": "探店攻略/评测",
+          "value": 63401
+        },
+        {
+          "label": "实拍&实录",
+          "value": 63405
+        }
+      ]
+    },
+    {
+      "label": "文化",
+      "value": 624,
+      "count": 0,
+      "children": [
+        {
+          "label": "传统文化",
+          "value": 62401
+        },
+        {
+          "label": "武术",
+          "value": 62415
+        },
+        {
+          "label": "人文",
+          "value": 62402
+        },
+        {
+          "label": "传统建筑",
+          "value": 62408
+        },
+        {
+          "label": "传统美术",
+          "value": 62407
+        },
+        {
+          "label": "戏曲",
+          "value": 62413
+        },
+        {
+          "label": "山歌",
+          "value": 62417
+        },
+        {
+          "label": "博物馆",
+          "value": 62405
+        },
+        {
+          "label": "人文综合",
+          "value": 62403
+        },
+        {
+          "label": "传统手工艺",
+          "value": 62414
+        },
+        {
+          "label": "书法",
+          "value": 62406
+        },
+        {
+          "label": "曲艺",
+          "value": 62412
+        },
+        {
+          "label": "非遗综合",
+          "value": 62410
+        },
+        {
+          "label": "品牌历史",
+          "value": 62404
+        },
+        {
+          "label": "其他传统文化",
+          "value": 62419
+        },
+        {
+          "label": "古董文玩",
+          "value": 62416
+        },
+        {
+          "label": "茶道",
+          "value": 62411
+        },
+        {
+          "label": "民俗",
+          "value": 62409
+        },
+        {
+          "label": "游艺与杂技",
+          "value": 62418
+        },
+        {
+          "label": "传统服饰",
+          "value": 62420
+        }
+      ]
+    },
+    {
+      "label": "舞蹈",
+      "value": 612,
+      "count": 0,
+      "children": [
+        {
+          "label": "芭蕾舞",
+          "value": 61208
+        },
+        {
+          "label": "手势舞",
+          "value": 61202
+        },
+        {
+          "label": "肚皮舞",
+          "value": 61209
+        },
+        {
+          "label": "其他舞蹈",
+          "value": 61211
+        },
+        {
+          "label": "舞蹈教学",
+          "value": 61210
+        },
+        {
+          "label": "古典舞",
+          "value": 61206
+        },
+        {
+          "label": "街舞",
+          "value": 61204
+        },
+        {
+          "label": "民族舞",
+          "value": 61205
+        },
+        {
+          "label": "爵士舞",
+          "value": 61203
+        },
+        {
+          "label": "国标舞",
+          "value": 61207
+        },
+        {
+          "label": "网红舞",
+          "value": 61201
+        },
+        {
+          "label": "潮流舞蹈",
+          "value": 61213
+        },
+        {
+          "label": "休闲舞蹈",
+          "value": 61212
+        },
+        {
+          "label": "专业舞蹈",
+          "value": 61214
+        },
+        {
+          "label": "舞蹈其他",
+          "value": 61215
+        }
+      ]
+    },
+    {
+      "label": "教育校园",
+      "value": 626,
+      "count": 0,
+      "children": [
+        {
+          "label": "高考",
+          "value": 62611
+        },
+        {
+          "label": "出国留学",
+          "value": 62604
+        },
+        {
+          "label": "中考",
+          "value": 62610
+        },
+        {
+          "label": "艺考",
+          "value": 62605
+        },
+        {
+          "label": "校园",
+          "value": 62609
+        },
+        {
+          "label": "K12",
+          "value": 62607
+        },
+        {
+          "label": "本硕博",
+          "value": 62602
+        },
+        {
+          "label": "中小校园",
+          "value": 62613
+        },
+        {
+          "label": "大学校园",
+          "value": 62612
+        },
+        {
+          "label": "职业考证",
+          "value": 62603
+        },
+        {
+          "label": "机构推荐",
+          "value": 62608
+        },
+        {
+          "label": "语言",
+          "value": 62601
+        },
+        {
+          "label": "学习随拍",
+          "value": 62606
+        }
+      ]
+    },
+    {
+      "label": "艺术",
+      "value": 632,
+      "count": 0,
+      "children": [
+        {
+          "label": "艺术审美",
+          "value": 63211
+        },
+        {
+          "label": "艺术科普",
+          "value": 63208
+        },
+        {
+          "label": "潮流艺术",
+          "value": 63205
+        },
+        {
+          "label": "艺术装置",
+          "value": 63204
+        },
+        {
+          "label": "艺术收藏",
+          "value": 63209
+        },
+        {
+          "label": "博物馆",
+          "value": 63212
+        },
+        {
+          "label": "艺术展",
+          "value": 63207
+        },
+        {
+          "label": "魔术",
+          "value": 63213
+        },
+        {
+          "label": "艺术其他",
+          "value": 63210
+        },
+        {
+          "label": "雕塑",
+          "value": 63202
+        },
+        {
+          "label": "设计",
+          "value": 63203
+        },
+        {
+          "label": "绘画",
+          "value": 63201
+        }
+      ]
+    },
+    {
+      "label": "公益",
+      "value": 610,
+      "count": 0,
+      "children": [
+        {
+          "label": "爱心助学",
+          "value": 61001
+        },
+        {
+          "label": "医疗救助",
+          "value": 61003
+        },
+        {
+          "label": "公益其他",
+          "value": 61012
+        },
+        {
+          "label": "儿童关怀",
+          "value": 61008
+        },
+        {
+          "label": "寻人",
+          "value": 61006
+        },
+        {
+          "label": "助老服务",
+          "value": 61009
+        },
+        {
+          "label": "乡村发展",
+          "value": 61002
+        },
+        {
+          "label": "环境保护",
+          "value": 61004
+        },
+        {
+          "label": "灾害救助",
+          "value": 61005
+        },
+        {
+          "label": "残障关怀",
+          "value": 61010
+        },
+        {
+          "label": "助老助残",
+          "value": 61007
+        },
+        {
+          "label": "女性帮扶",
+          "value": 61011
+        }
+      ]
+    },
+    {
+      "label": "时尚",
+      "value": 631,
+      "count": 0,
+      "children": [
+        {
+          "label": "服饰",
+          "value": 63102
+        },
+        {
+          "label": "时尚探店",
+          "value": 63106
+        },
+        {
+          "label": "时尚带货",
+          "value": 63105
+        },
+        {
+          "label": "时尚综合",
+          "value": 63108
+        },
+        {
+          "label": "美容护理",
+          "value": 63109
+        },
+        {
+          "label": "时尚摄影",
+          "value": 63104
+        },
+        {
+          "label": "美妆",
+          "value": 63101
+        },
+        {
+          "label": "时尚营销",
+          "value": 63111
+        },
+        {
+          "label": "美业",
+          "value": 63107
+        },
+        {
+          "label": "时尚资讯",
+          "value": 63103
+        },
+        {
+          "label": "穿搭",
+          "value": 63110
+        }
+      ]
+    },
+    {
+      "label": "二次元",
+      "value": 607,
+      "count": 0,
+      "children": [
+        {
+          "label": "动漫剧场",
+          "value": 60701
+        },
+        {
+          "label": "二次元&国风声音创作",
+          "value": 60708
+        },
+        {
+          "label": "宅物",
+          "value": 60709
+        },
+        {
+          "label": "二次元绘画",
+          "value": 60707
+        },
+        {
+          "label": "二次元与国风装扮",
+          "value": 60706
+        },
+        {
+          "label": "虚拟形象",
+          "value": 60702
+        },
+        {
+          "label": "动漫资讯杂谈",
+          "value": 60704
+        },
+        {
+          "label": "AI创作剧场",
+          "value": 60710
+        }
+      ]
+    },
+    {
+      "label": "电视剧",
+      "value": 605,
+      "count": 0,
+      "children": [
+        {
+          "label": "纪录剧集解说",
+          "value": 60506
+        },
+        {
+          "label": "原创纪录片",
+          "value": 60507
+        },
+        {
+          "label": "电视剧其他",
+          "value": 60504
+        },
+        {
+          "label": "电视剧剧情解说",
+          "value": 60508
+        },
+        {
+          "label": "电视剧科普杂谈",
+          "value": 60509
+        }
+      ]
+    },
+    {
+      "label": "科技",
+      "value": 615,
+      "count": 0,
+      "children": [
+        {
+          "label": "科技科普",
+          "value": 61502
+        },
+        {
+          "label": "科技产品",
+          "value": 61501
+        },
+        {
+          "label": "机械电工",
+          "value": 61504
+        },
+        {
+          "label": "工程制造",
+          "value": 61505
+        },
+        {
+          "label": "航空航天",
+          "value": 61503
+        },
+        {
+          "label": "数码产品",
+          "value": 61507
+        },
+        {
+          "label": "科技DIY",
+          "value": 61508
+        },
+        {
+          "label": "大众科技",
+          "value": 61509
+        },
+        {
+          "label": "前沿科技",
+          "value": 61506
+        }
+      ]
+    },
+    {
+      "label": "三农",
+      "value": 614,
+      "count": 0,
+      "children": [
+        {
+          "label": "农业资讯",
+          "value": 61407
+        },
+        {
+          "label": "农村手艺",
+          "value": 61405
+        },
+        {
+          "label": "三农电商",
+          "value": 61408
+        },
+        {
+          "label": "农村生活",
+          "value": 61404
+        },
+        {
+          "label": "赶海",
+          "value": 61402
+        },
+        {
+          "label": "农村美食",
+          "value": 61403
+        },
+        {
+          "label": "农业技术",
+          "value": 61406
+        },
+        {
+          "label": "户外打野",
+          "value": 61401
+        },
+        {
+          "label": "乡村生活",
+          "value": 61409
+        }
+      ]
+    },
+    {
+      "label": "体育",
+      "value": 633,
+      "count": 0,
+      "children": [
+        {
+          "label": "极限运动",
+          "value": 63309
+        },
+        {
+          "label": "运动健身",
+          "value": 63301
+        },
+        {
+          "label": "综合体育",
+          "value": 63305
+        },
+        {
+          "label": "球类项目",
+          "value": 63304
+        },
+        {
+          "label": "格斗",
+          "value": 63306
+        },
+        {
+          "label": "冰雪",
+          "value": 63307
+        },
+        {
+          "label": "户外运动",
+          "value": 63308
+        },
+        {
+          "label": "广场舞",
+          "value": 63310
+        },
+        {
+          "label": "垂钓",
+          "value": 63303
+        }
+      ]
+    },
+    {
+      "label": "电影",
+      "value": 604,
+      "count": 0,
+      "children": [
+        {
+          "label": "纪录电影解说",
+          "value": 60406
+        },
+        {
+          "label": "电影其他",
+          "value": 60404
+        },
+        {
+          "label": "电影剧情解说",
+          "value": 60405
+        },
+        {
+          "label": "电影科普杂谈",
+          "value": 60408
+        },
+        {
+          "label": "电影剧情解说",
+          "value": 60407
+        },
+        {
+          "label": "AI原生影像",
+          "value": 60409
+        }
+      ]
+    },
+    {
+      "label": "动物",
+      "value": 613,
+      "count": 0,
+      "children": [
+        {
+          "label": "动物其他",
+          "value": 61308
+        },
+        {
+          "label": "动物综合",
+          "value": 61310
+        },
+        {
+          "label": "动物-非宠物",
+          "value": 61305
+        },
+        {
+          "label": "宠物狗",
+          "value": 61301
+        },
+        {
+          "label": "动物公益",
+          "value": 61307
+        },
+        {
+          "label": "宠物行业相关",
+          "value": 61303
+        },
+        {
+          "label": "宠物猫",
+          "value": 61302
+        },
+        {
+          "label": "异宠",
+          "value": 61304
+        },
+        {
+          "label": "动物混剪",
+          "value": 61306
+        }
+      ]
+    },
+    {
+      "label": "汽车",
+      "value": 635,
+      "count": 0,
+      "children": [
+        {
+          "label": "车辆类型",
+          "value": 63509
+        },
+        {
+          "label": "用车",
+          "value": 63504
+        },
+        {
+          "label": "汽车技术",
+          "value": 63507
+        },
+        {
+          "label": "新车",
+          "value": 63502
+        },
+        {
+          "label": "汽车周边",
+          "value": 63508
+        },
+        {
+          "label": "二手车",
+          "value": 63503
+        },
+        {
+          "label": "行业",
+          "value": 63506
+        },
+        {
+          "label": "玩车",
+          "value": 63505
+        },
+        {
+          "label": "学车",
+          "value": 63501
+        }
+      ]
+    },
+    {
+      "label": "医疗健康",
+      "value": 621,
+      "count": 0,
+      "children": [
+        {
+          "label": "经验分享",
+          "value": 62109
+        },
+        {
+          "label": "其他医疗",
+          "value": 62111
+        },
+        {
+          "label": "泛健康知识科普",
+          "value": 62105
+        },
+        {
+          "label": "疾病分类",
+          "value": 62104
+        },
+        {
+          "label": "医疗机构",
+          "value": 62110
+        },
+        {
+          "label": "整形医疗",
+          "value": 62108
+        },
+        {
+          "label": "孕产医疗",
+          "value": 62107
+        },
+        {
+          "label": "疾病科普",
+          "value": 62106
+        }
+      ]
+    },
+    {
+      "label": "音乐",
+      "value": 606,
+      "count": 0,
+      "children": [
+        {
+          "label": "乐器演奏",
+          "value": 60602
+        },
+        {
+          "label": "音乐资讯",
+          "value": 60605
+        },
+        {
+          "label": "音乐演唱",
+          "value": 60601
+        },
+        {
+          "label": "乐器教学",
+          "value": 60604
+        },
+        {
+          "label": "音乐教学",
+          "value": 60607
+        },
+        {
+          "label": "歌唱教学",
+          "value": 60603
+        },
+        {
+          "label": "音乐制作",
+          "value": 60608
+        },
+        {
+          "label": "音乐其他",
+          "value": 60606
+        }
+      ]
+    },
+    {
+      "label": "摄影摄像",
+      "value": 627,
+      "count": 0,
+      "children": [
+        {
+          "label": "摄影摄像器材",
+          "value": 62703
+        },
+        {
+          "label": "摄影摄像技巧",
+          "value": 62706
+        },
+        {
+          "label": "摄影摄像作品",
+          "value": 62705
+        },
+        {
+          "label": "照片技巧",
+          "value": 62701
+        },
+        {
+          "label": "摄影其他",
+          "value": 62707
+        },
+        {
+          "label": "视频技巧",
+          "value": 62702
+        },
+        {
+          "label": "特效流",
+          "value": 62704
+        }
+      ]
+    },
+    {
+      "label": "明星",
+      "value": 602,
+      "count": 0,
+      "children": [
+        {
+          "label": "明星混剪",
+          "value": 60205
+        },
+        {
+          "label": "reaction",
+          "value": 60204
+        },
+        {
+          "label": "资讯访谈",
+          "value": 60202
+        },
+        {
+          "label": "明星娱评",
+          "value": 60203
+        },
+        {
+          "label": "明星ugc",
+          "value": 60201
+        },
+        {
+          "label": "追星衍生",
+          "value": 60207
+        },
+        {
+          "label": "娱评",
+          "value": 60206
+        }
+      ]
+    },
+    {
+      "label": "生活家居",
+      "value": 619,
+      "count": 0,
+      "children": [
+        {
+          "label": "硬装",
+          "value": 61904
+        },
+        {
+          "label": "家居家政",
+          "value": 61902
+        },
+        {
+          "label": "生活技巧",
+          "value": 61906
+        },
+        {
+          "label": "结婚",
+          "value": 61903
+        },
+        {
+          "label": "软装",
+          "value": 61905
+        },
+        {
+          "label": "生活方式",
+          "value": 61901
+        },
+        {
+          "label": "家居氛围",
+          "value": 61907
+        }
+      ]
+    },
+    {
+      "label": "随拍",
+      "value": 611,
+      "count": 0,
+      "children": [
+        {
+          "label": "随拍故事",
+          "value": 61103
+        },
+        {
+          "label": "日常实拍",
+          "value": 61106
+        },
+        {
+          "label": "生活随拍",
+          "value": 61101
+        },
+        {
+          "label": "颜值",
+          "value": 61105
+        },
+        {
+          "label": "其他随拍",
+          "value": 61104
+        },
+        {
+          "label": "工作随拍",
+          "value": 61102
+        },
+        {
+          "label": "碎片素材",
+          "value": 61107
+        }
+      ]
+    },
+    {
+      "label": "颜值",
+      "value": 641,
+      "count": 0,
+      "children": [
+        {
+          "label": "颜值他拍",
+          "value": 64104
+        },
+        {
+          "label": "他拍",
+          "value": 64102
+        },
+        {
+          "label": "变装",
+          "value": 64105
+        },
+        {
+          "label": "自拍",
+          "value": 64101
+        },
+        {
+          "label": "颜值自拍",
+          "value": 64103
+        },
+        {
+          "label": "卡点",
+          "value": 64106
+        },
+        {
+          "label": "对口型随拍",
+          "value": 64107
+        }
+      ]
+    },
+    {
+      "label": "情感",
+      "value": 623,
+      "count": 0,
+      "children": [
+        {
+          "label": "婚姻",
+          "value": 62302
+        },
+        {
+          "label": "情感鸡汤",
+          "value": 62305
+        },
+        {
+          "label": "恋爱",
+          "value": 62301
+        },
+        {
+          "label": "自我成长（成长观念）",
+          "value": 62304
+        },
+        {
+          "label": "心理",
+          "value": 62306
+        },
+        {
+          "label": "星座",
+          "value": 62303
+        }
+      ]
+    },
+    {
+      "label": "人文社科",
+      "value": 638,
+      "count": 0,
+      "children": [
+        {
+          "label": "文学",
+          "value": 63801
+        },
+        {
+          "label": "国学",
+          "value": 63806
+        },
+        {
+          "label": "读书书评",
+          "value": 63803
+        },
+        {
+          "label": "网络小说",
+          "value": 63802
+        },
+        {
+          "label": "社科",
+          "value": 63805
+        },
+        {
+          "label": "历史",
+          "value": 63804
+        }
+      ]
+    },
+    {
+      "label": "科普",
+      "value": 622,
+      "count": 0,
+      "children": [
+        {
+          "label": "数理科学",
+          "value": 62204
+        },
+        {
+          "label": "科普综合",
+          "value": 62205
+        },
+        {
+          "label": "天文地理",
+          "value": 62202
+        },
+        {
+          "label": "生物科普",
+          "value": 62201
+        },
+        {
+          "label": "社会科普",
+          "value": 62203
+        }
+      ]
+    },
+    {
+      "label": "财经",
+      "value": 616,
+      "count": 0,
+      "children": [
+        {
+          "label": "保险",
+          "value": 61602
+        },
+        {
+          "label": "金融",
+          "value": 61601
+        },
+        {
+          "label": "宏观经济",
+          "value": 61605
+        },
+        {
+          "label": "房产",
+          "value": 61603
+        },
+        {
+          "label": "创业商业",
+          "value": 61604
+        }
+      ]
+    },
+    {
+      "label": "职场",
+      "value": 625,
+      "count": 0,
+      "children": [
+        {
+          "label": "个人提升&管理",
+          "value": 62504
+        },
+        {
+          "label": "职场管理",
+          "value": 62506
+        },
+        {
+          "label": "产品&运营技能",
+          "value": 62505
+        },
+        {
+          "label": "办公软件",
+          "value": 62502
+        },
+        {
+          "label": "专业技能",
+          "value": 62503
+        }
+      ]
+    },
+    {
+      "label": "母婴",
+      "value": 617,
+      "count": 0,
+      "children": [
+        {
+          "label": "孕产照护",
+          "value": 61701
+        },
+        {
+          "label": "育儿理念",
+          "value": 61704
+        },
+        {
+          "label": "启蒙早教",
+          "value": 61703
+        },
+        {
+          "label": "辅食喂养",
+          "value": 61702
+        }
+      ]
+    },
+    {
+      "label": "综艺",
+      "value": 603,
+      "count": 0,
+      "children": [
+        {
+          "label": "综艺其他",
+          "value": 60304
+        }
+      ]
+    },
+    {
+      "label": "生活记录",
+      "value": 636,
+      "count": 0,
+      "children": [
+        {
+          "label": "日常生活",
+          "value": 63604
+        },
+        {
+          "label": "海外生活",
+          "value": 63601
+        },
+        {
+          "label": "职业生活",
+          "value": 63603
+        },
+        {
+          "label": "国内城市生活",
+          "value": 63602
+        }
+      ]
+    },
+    {
+      "label": "亲子",
+      "value": 618,
+      "count": 0,
+      "children": [
+        {
+          "label": "萌娃",
+          "value": 61802
+        },
+        {
+          "label": "儿童玩具",
+          "value": 61803
+        },
+        {
+          "label": "亲子互动日常",
+          "value": 61801
+        }
+      ]
+    },
+    {
+      "label": "特效&小游戏",
+      "value": 642,
+      "count": 0,
+      "children": [
+        {
+          "label": "抖音小游戏",
+          "value": 64201
+        },
+        {
+          "label": "微信小游戏",
+          "value": 64202
+        },
+        {
+          "label": "特效小游戏",
+          "value": 64203
+        }
+      ]
+    },
+    {
+      "label": "剧情",
+      "value": 601,
+      "count": 0,
+      "children": [
+        {
+          "label": "短剧",
+          "value": 60101
+        },
+        {
+          "label": "演绎",
+          "value": 60102
+        },
+        {
+          "label": "AI原生影像",
+          "value": 60103
+        }
+      ]
+    },
+    {
+      "label": "法律",
+      "value": 620,
+      "count": 0,
+      "children": [
+        {
+          "label": "法律资讯",
+          "value": 62002
+        },
+        {
+          "label": "法律解读",
+          "value": 62001
+        },
+        {
+          "label": "普法日常",
+          "value": 62003
+        }
+      ]
+    },
+    {
+      "label": "AI原生影像",
+      "value": 643,
+      "count": 0,
+      "children": [
+        {
+          "label": "AIMV/数字人",
+          "value": 64302
+        },
+        {
+          "label": "AI原创短片",
+          "value": 64301
+        }
+      ]
+    },
+    {
+      "label": "游戏",
+      "value": 608,
+      "count": 0,
+      "children": [
+        {
+          "label": "内容类型",
+          "value": 60801
+        }
+      ]
+    }
+  ]
+}

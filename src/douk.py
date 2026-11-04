@@ -230,7 +230,7 @@ def job(job_id, with_data=False):
         raise ValueError("任务不存在")
     value["progress"] = read(metadata(job_id).parent / "progress.json", {})
     if with_data:
-        if value.get("endpoint") == "tikhub_api":
+        if value.get("endpoint") in {"tikhub_api", "discovery"}:
             import tikhub
             response = tikhub.public_result(read(metadata(job_id).parent / "result.json", {}))
         else:
@@ -243,7 +243,7 @@ def job(job_id, with_data=False):
                 lines=handle.read().decode('utf-8',errors='replace').splitlines()[-70:]
             value["logs"] = '\n'.join('[凭据日志已隐藏]' if re.search(r'cookie|token|authorization|sessionid|verify_fp|s_v_web_id',line,re.I)
                 else re.sub(r'\x1b\[[0-9;]*m','',line) for line in lines)
-        value["records"] = (response.get("data", []) if value.get("endpoint") == "tikhub_api" else
+        value["records"] = (response.get("data", []) if value.get("endpoint") in {"tikhub_api", "discovery"} else
                             [normalize(x, value.get("platform", "douyin")) or x for x in response.get("data", [])])
         if value.get("platform") == "douyin":
             covers = {row["aweme_id"]: row["cover_path"] for row in
@@ -280,12 +280,17 @@ def file_path(name):
 def submit(data):
     global STARTED
     endpoint = data.get("endpoint", "")
-    if endpoint not in {"tikhub", "tikhub_api", "mcpro"} and not PYTHON.exists():
+    if endpoint not in {"tikhub", "tikhub_api", "mcpro", "discovery"} and not PYTHON.exists():
         raise ValueError("引擎未安装，请运行 scripts/setup_douk.py")
-    allowed = set(catalog()["openapi"]["paths"]) | set(catalog()["extra"]) | {"sync", "backfill", "record", "tikhub", "tikhub_api", "mcpro"}
+    allowed = set(catalog()["openapi"]["paths"]) | set(catalog()["extra"]) | {"sync", "backfill", "record", "tikhub", "tikhub_api", "mcpro", "discovery"}
     if endpoint not in allowed or endpoint in {"/", "/settings", "/token"}:
         raise ValueError("不支持的任务类型")
     request = copy.deepcopy(data)
+    if endpoint == "discovery":
+        import discovery
+        preview = discovery.plan({**request.get("query", {}), "pages": request.get("pages", 1), "page_start": request.get("page_start", 1)})
+        if not preview["allowed"] or request.get("confirmed") is not True or request.get("fingerprint") != preview["fingerprint"]:
+            raise ValueError(preview["reason"] or "请重新预览发现请求")
     if endpoint == "tikhub_api":
         import tikhub
         preview = tikhub.plan(request)
@@ -308,7 +313,7 @@ def submit(data):
         directory = metadata(job_id).parent
         directory.mkdir(parents=True, exist_ok=True)
         request["progress_path"] = str(directory / "progress.json")
-        if endpoint == "tikhub_api":
+        if endpoint in {"tikhub_api", "discovery"}:
             request["job_id"] = job_id
         atomic(directory / "request.json", request)
         value = {"id": job_id, "endpoint": endpoint, "platform": "tiktok" if endpoint.startswith("/tiktok") else "douyin",
@@ -378,7 +383,13 @@ def consume():
                         value.update(status="completed", count=0)
                         atomic(metadata(jid), value)
                         continue
-                if request["endpoint"] == "tikhub_api":
+                if request["endpoint"] == "discovery":
+                    import discovery
+                    result = discovery.execute(request,
+                        lambda p: atomic(folder / "progress.json", p),
+                        lambda: read(metadata(jid), {}).get("status") == "cancelled")
+                    atomic(folder / "result.json", result)
+                elif request["endpoint"] == "tikhub_api":
                     import tikhub
                     result = tikhub.execute(request,
                         lambda p: atomic(folder / "progress.json", p),
@@ -467,7 +478,7 @@ def cancel(jid):
 
 def retry(jid):
     original = read(metadata(jid).parent / "request.json", {})
-    if original.get("endpoint") in {"tikhub", "tikhub_api"}:
+    if original.get("endpoint") in {"tikhub", "tikhub_api", "discovery"}:
         raise ValueError("TikHub 重试可能再次计费，请回到接口页面重新预览并提交")
     if not original:
         raise ValueError("原任务参数不存在")

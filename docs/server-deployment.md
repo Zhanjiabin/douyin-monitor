@@ -30,11 +30,15 @@ Windows 的 MariaDB 业务库已导出到 `data/mcpro/server-migration/observato
 
 ## 功能与空间限制
 
-已验证网页登录、工作台、账号管理、作品监控、内容研究、采集中心、设置、已有素材 Range 下载、单作品刷新预览及退出后的访问拦截。TikHub 限额、批量接口默认关闭和原有定时监控设置保持不变。部署验收没有新增付费 API 请求。
+网页登录、工作台、账号管理、作品监控、内容研究、采集中心、设置、已有素材 Range 下载、单作品刷新预览及退出后的访问拦截已通过原版本验收。本次增加发现、公开趋势、粉丝画像、样本比较及定时计划；TikHub 限额、批量接口默认关闭和原有监控设置保持不变。
 
-新的原生视频解析下载依赖 MediaCrawlerPro 的签名、CookieBridge、Downloader 服务及 Linux/Python 3.12 环境，当前尚未启动；浏览器采集和独立 AI 工作室也未启用。已有素材下载可用。下载预览会提示空间或环境不足，避免创建必然失败的任务。
+原生视频解析下载所需的签名、CookieBridge、Downloader 已安装 Python 3.12 隔离环境，并由 `douyin-native@sign`、`douyin-native@cookie`、`douyin-native@downloader` 三个 systemd 服务开机启动。服务仅监听回环地址 8989/8274/8205，不开放公网端口；复用此前已同步的普通平台登录，不索取创作者后台 Cookie。新下载仍受平台登录有效期、平台限制和内容可见性影响。浏览器采集和独立 AI 工作室未在服务器启用。
 
-部署后磁盘只剩约 55MB。14 天以前的归档系统日志约占 462MB，清理许可正在等待用户确认，未删除系统日志。继续安装下载引擎或保存更多视频前，需要释放空间或扩容。
+2026-11-04 运行环境安装时磁盘约有 12GB 可用；随后发布前复核，磁盘已扩到约 64GB，可用约 26GB。磁盘容量变化来自本次工作以外的服务器调整。旧部署的低空间提示已过时。此前用户批准过清理旧归档系统日志；实际清理越过日期边界的问题已单独披露，补存的传统日志副本位于 `/var/log/journal-recovery/`。本次没有继续删除系统日志或其他应用数据。
+
+如需在新 Linux 服务器安装原生下载能力，先按授权方式取得 MediaCrawlerPro 私有源码到 `vendor/MediaCrawlerPro`，再运行 `bash scripts/setup_server_native.sh`。此脚本只准备本项目隔离运行环境；不发布私有源码、配置或 Cookie。安装 `deploy/douyin-native@.service` 后启用以上三个实例。Downloader 的 systemd 依赖应包含 sign 与 cookie 两个实例。
+
+本次线上验收使用两次单页发现请求：低粉爆款返回 19 条有效作品，上升热点返回 20 条，均成功入缓存并可导出；未调用批量视频统计。临时计划的保存、启用、暂停、删除正常，验收计划已删除，没有留下收费定时任务。原参考作品的原生解析下载任务成功，已有文件复用，素材 Range 下载通过。登录后的真实发现页、详情返回、工作台账号、公开画像入口、默认关闭的关键词许可及移动布局通过浏览器验收，未出现 JavaScript 错误。
 
 ## 备份与维护
 
@@ -43,6 +47,7 @@ Windows 的 MariaDB 业务库已导出到 `data/mcpro/server-migration/observato
 ```sh
 systemctl status douyin-monitor
 systemctl restart douyin-monitor
+systemctl status 'douyin-native@*'
 systemctl list-timers douyin-monitor-backup.timer
 systemctl start douyin-monitor-backup.service
 tail -n 80 /opt/douyin-monitor/logs/server.log

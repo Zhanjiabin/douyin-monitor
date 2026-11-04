@@ -55,7 +55,8 @@ with tempfile.TemporaryDirectory(prefix="product-ui-") as temp:
             page.wait_for_selector("#rankBody tr")
             assert page.locator("#loginButton").count() == 0
             assert page.locator("#runButton").count() == 0
-            assert page.locator(".gc-nav>a").count() == 5
+            assert page.locator(".gc-nav>a").count() == 6
+            assert page.locator('.gc-nav>a[href="/discover"]').count()==1
             assert "图片工作室" not in page.locator(".gc-nav").inner_text()
             assert '监控账号' not in page.locator('.gc-nav').inner_text()
             page.goto(base+'/screen#accounts')

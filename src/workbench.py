@@ -129,13 +129,20 @@ def research(aid):
     data = insights.dashboard(90, include_archived=True)
     video = next((v for v in data["videos"] if v["aweme_id"] == aid), None)
     if not video:
-        raise ValueError("作品不在监控库中")
+        import discovery
+        video = discovery.work(aid)
+        if not video:
+            raise ValueError("作品不在监控或发现结果中")
     corpus.init()
     content = store.q("SELECT description,title,published_at FROM content_library WHERE platform='dy' AND content_id=?", (aid,))
     description = (content[0].get("description") if content else "") or video.get("title") or ""
     related = [v for v in data["videos"] if v["aweme_id"] != aid and v["sec_uid"] == video["sec_uid"]]
     related.sort(key=lambda v: v.get("play_count") or -1, reverse=True)
     files = [f for f in integrations.assets()["items"] if aid in f["name"]]
+    account = next((a for a in data["accounts"] if a["sec_uid"] == video.get("sec_uid")), {})
+    import discovery
     return {"video": video, "description": description, "history": intelligence.video_history(aid),
+            "comparison": discovery.comparison(aid,data["videos"]),
+            "is_own": account.get("role") == "own", "monitored": video.get("monitored", True),
             "comments": corpus.comments("dy", aid)["items"], "files": files, "related": related[:6],
             "title_features": video.get("features", []), "topic": video.get("topic")}

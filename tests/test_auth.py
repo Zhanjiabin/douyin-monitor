@@ -50,13 +50,15 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(page.status_code,200)
         self.assertIn('id="loginForm"',page.text)
         self.assertNotIn('WWW-Authenticate',page.headers)
-        for path in ['/home','/screen','/assets','/manage','/media/missing.jpg','/product.js']:
+        for path in ['/home','/screen','/assets','/manage','/media/missing.jpg','/product.js','/discover','/discovery.js','/audience.js','/discovery.css']:
             response=self.client.get(self.base+path,allow_redirects=False)
             self.assertEqual(response.status_code,302,path)
             self.assertTrue(response.headers['Location'].startswith('/login?next='))
-        for path in ['/api/workbench/state','/api/playback/settings','/api/tikhub/catalog','/api/integrations/asset?source=downloads&path=video.mp4']:
+        for path in ['/api/workbench/state','/api/playback/settings','/api/tikhub/catalog','/api/integrations/asset?source=downloads&path=video.mp4','/api/discovery/catalog','/api/discovery/cache?query=%7B%7D','/api/discovery/export?query=%7B%7D']:
             self.assertEqual(self.client.get(self.base+path).status_code,401,path)
         self.assertEqual(self.client.post(self.base+'/api/intel/account-settings',json={}).status_code,401)
+        for endpoint in ['plan','submit','rules','watches','settings']:
+            self.assertEqual(self.client.post(self.base+'/api/discovery/'+endpoint,json={}).status_code,401)
         self.state_mock.assert_not_called()
 
     def test_login_cookie_persists_and_logout_invalidates_it(self):

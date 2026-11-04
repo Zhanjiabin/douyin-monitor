@@ -4,7 +4,7 @@
   const fmt=n=>n==null?'—':n>=1e8?(n/1e8).toFixed(2)+'亿':n>=1e4?(n/1e4).toFixed(1)+'万':Number(n).toLocaleString('zh-CN');
   const date=n=>n?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(n*1000)):'—';
   const picture=(src,cls='')=>src?`<img class="${cls}" src="${esc(src)}" alt="" loading="lazy">`:`<span class="image-fallback ${cls}">影</span>`;
-  const sources={tikhub_app:'TikHub · 单作品统计',tikhub_app_batch:'TikHub · 批量统计',tikhub_app_v3:'TikHub · 作品详情',tikhub_xingtu:'星图统计',public_mix_metric:'合集统计',public:'主页作品',not_exposed:'主页作品',author_post:'主页作品',douk_detail:'视频详情',mcpro_python:'平台采集'};
+  const sources={discovery:'发现榜单',tikhub_app:'TikHub · 单作品统计',tikhub_app_batch:'TikHub · 批量统计',tikhub_app_v3:'TikHub · 作品详情',tikhub_xingtu:'星图统计',public_mix_metric:'合集统计',public:'主页作品',not_exposed:'主页作品',author_post:'主页作品',douk_detail:'视频详情',mcpro_python:'平台采集'};
   const roles={own:'自有',peer:'同行',unclassified:'未分组'};
   const statusNames={queued:'排队中',running:'进行中',completed:'已完成',partial:'部分完成',failed:'失败',cancelled:'已取消',interrupted:'已中断'};
   const actionNames={account:'同步账号作品',video:'更新作品详情',playback:'更新作品数据',comments:'采集评论',download:'下载视频'};
@@ -45,6 +45,18 @@
       toggle.onclick=()=>{const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));toggle.textContent=open?'－ 收起筛选':'＋ 展开筛选';extra.forEach(el=>el.hidden=!open);};form.append(toggle);
     });
   }
+  const modalParents=new WeakMap(),modalFocus=new WeakMap();
+  function openDialog(d){
+    if(d.open)return;
+    const current=document.querySelector('dialog[open]');
+    if(current&&current!==d){modalFocus.set(d,document.activeElement);current.dataset.suspended='true';current.close();modalParents.set(d,current);}
+    if(!d.dataset.resumeReady){d.dataset.resumeReady='true';d.addEventListener('close',()=>{
+      if(d.dataset.suspended)return;
+      const parent=modalParents.get(d);modalParents.delete(d);
+      if(parent&&!parent.open){delete parent.dataset.suspended;parent.showModal();const focus=modalFocus.get(d);modalFocus.delete(d);if(focus?.isConnected)focus.focus({preventScroll:true});if(parent.dataset.needsRefresh){delete parent.dataset.needsRefresh;window.dispatchEvent(new Event('gc-data-updated'));}}
+    });}
+    d.showModal();
+  }
   function dialog(id,title,cls=''){
     let d=document.getElementById(id);if(d)return d;
     d=document.createElement('dialog');d.id=id;d.className='product-dialog '+cls;
@@ -53,11 +65,11 @@
     document.body.append(d);return d;
   }
   const busy=message=>`<div class="product-empty" role="status">${esc(message)}</div>`;
-  function metrics(v){return `<div class="product-metrics">${[['播放',v.play_count],['点赞',v.digg_count],['评论',v.comment_count],['收藏',v.collect_count],['分享',v.share_count]].map(([k,n])=>`<div><small>${k}</small><b>${fmt(n)}</b></div>`).join('')}</div>`;}
+  function metrics(v){if(v.monitored===false)return `<div class="discovered-metrics">${[['榜单播放',v.board_play_count],['指数',v.index],['点赞',v.digg_count],['作者粉丝',v.fans]].filter(([,n])=>n!=null).map(([k,n])=>`<span>${k}<b>${fmt(n)}</b></span>`).join('')}</div>`;return `<div class="product-metrics">${[['播放',v.play_count],['点赞',v.digg_count],['评论',v.comment_count],['收藏',v.collect_count],['分享',v.share_count]].map(([k,n])=>`<div><small>${k}</small><b>${fmt(n)}</b></div>`).join('')}</div>`;}
   let actionVersion=0;
   async function openAction(values){
     const d=dialog('inlineActionDialog','确认采集','action-dialog'),body=d.querySelector('.product-dialog-body'),version=++actionVersion;
-    d.querySelector('h2').textContent=actionNames[values.action]||'采集';body.innerHTML=busy('正在预览本次请求');if(!d.open)d.showModal();
+    d.querySelector('h2').textContent=actionNames[values.action]||'采集';body.innerHTML=busy('正在预览本次请求');openDialog(d);
     const request={pages:1,playback_method:'single',missing_only:false,...values};
     if(request.video_ids&&request.action==='download')request.input=request.video_ids.join('\n');
     let plan=null,jobId=null,timer=null,submitting=false;
@@ -107,11 +119,12 @@
     const previousForm=keep?d.querySelector('[data-account-form]'):null;
     const draft=previousForm?Object.fromEntries(new FormData(previousForm)):null;
     const previousScroll=keep?(d.querySelector('.account-works-scroll')?.scrollTop||0):0;
-    if(!keep){accountFilter={q:'',topic:'',period:'',sort:'new'};accountPage=0;}activeAccount=id;body.innerHTML=busy('正在读取账号明细');if(!d.open)d.showModal();
+    if(!keep){accountFilter={q:'',topic:'',period:'',sort:'new'};accountPage=0;}activeAccount=id;body.innerHTML=busy('正在读取账号明细');openDialog(d);
     try{const s=await api('/api/workbench/state');if(version!==accountVersion)return;accountData=s;const a=s.accounts.find(x=>x.sec_uid===id);if(!a)throw Error('账号已移除');
       const works=s.videos.filter(v=>v.sec_uid===id),topics=[...new Set(works.map(v=>v.topic).filter(Boolean))],latest=[...works].sort((x,y)=>(y.create_time||0)-(x.create_time||0))[0];
       d.querySelector('.product-dialog-head').innerHTML=`<div class="compact-account-heading">${picture(a.avatar_path,'account-detail-avatar')}<div><h2 id="accountDetailDialogTitle">${esc(a.nickname||a.note||'未命名账号')}<span class="role-pill">${roles[a.role]||'未分组'}</span><span class="monitor-pill ${a.enabled?'on':''}">${a.enabled?'监控中':'已暂停'}</span></h2><p>最近发布 ${date(latest?.create_time)}<span>同步 ${esc(a.last_scan_at||'尚未同步')}</span></p></div></div><div class="compact-account-actions"><a class="btn" target="_blank" rel="noreferrer" href="https://www.douyin.com/user/${encodeURIComponent(id)}">抖音主页 ↗</a><button class="btn primary" data-inline-action="account" data-inline-account="${esc(id)}">同步作品</button><button class="btn" data-edit-account="${esc(id)}">管理</button><button class="btn" data-dismiss>关闭</button></div>`;
       body.innerHTML=`        <div class="filter-layout modal-filter-layout"><form class="filter-panel filter-bar" id="accountWorkFilters" data-account-form><label><span class="filter-label">作品 / ID</span><input name="q" placeholder="搜索标题或作品 ID" value="${esc(accountFilter.q)}"></label><label><span class="filter-label">题材</span><select name="topic"><option value="">全部题材</option>${topics.map(t=>`<option ${accountFilter.topic===t?'selected':''}>${esc(t)}</option>`).join('')}</select></label><label><span class="filter-label">发布时间</span><select name="period"><option value="">全部时间</option>${[7,30,90].map(n=>`<option value="${n}" ${accountFilter.period===String(n)?'selected':''}>最近 ${n} 天</option>`).join('')}</select></label><label><span class="filter-label">排序</span><select name="sort"><option value="new">最新发布</option><option value="play" ${accountFilter.sort==='play'?'selected':''}>播放量最高</option></select></label><div class="filter-buttons"><button class="btn primary" type="submit">搜索</button><button class="btn" type="reset">重置</button></div></form><div class="filter-results"><div class="table-scroll account-works-scroll"><table><thead><tr><th>作品 / 发布时间</th><th>播放</th><th>点赞</th><th>评论</th><th>收藏</th><th>分享</th><th>操作</th></tr></thead><tbody data-account-rows></tbody></table></div><div data-account-pagination></div></div></div>`;
+      const portrait=document.createElement('button');portrait.className='btn';portrait.textContent='粉丝画像';portrait.onclick=()=>GuanchaoAudience.open({source:'portrait',sec_uid:id},(a.nickname||a.note||'账号')+' · 粉丝画像');d.querySelector('.compact-account-actions').prepend(portrait);
       initFilters(d);const form=d.querySelector('[data-account-form]');if(draft)Object.entries(draft).forEach(([key,value])=>{form.elements[key].value=value;});form.onsubmit=e=>{e.preventDefault();accountFilter=Object.fromEntries(new FormData(form));accountFilter.q=accountFilter.q.trim().toLowerCase();accountPage=0;accountRows();};form.onreset=e=>{e.preventDefault();form.elements.q.value='';form.elements.topic.value='';form.elements.period.value='';form.elements.sort.value='new';};
       accountRows();d.querySelector('.account-works-scroll').scrollTop=previousScroll;
     }catch(e){if(version===accountVersion)body.innerHTML=busy(e.message);}
@@ -125,13 +138,16 @@
     if(workTab==='comments')html=`<div class="copy-toolbar"><b>${workDetail.comments.length} 条已采集评论</b><button class="btn primary" data-inline-action="comments" data-aid="${v.aweme_id}">采集评论</button></div>${workDetail.comments.map(c=>`<article class="comment-row"><div class="comment-meta"><b>${esc(c.author_name||'用户')}</b><span>${esc(c.published_at||'')}</span><span>${fmt(c.like_count)} 赞</span></div><p>${esc(c.content)}</p></article>`).join('')||busy('尚未采集评论')}`;
     if(workTab==='media')html=`<div class="copy-toolbar"><b>已保存素材</b><button class="btn primary" data-inline-action="download" data-aid="${v.aweme_id}">下载视频到素材库</button></div>${workDetail.files.map(f=>`<div class="file-link"><span>${esc(f.name.split('/').pop())}</span><a class="text-link" target="_blank" rel="noreferrer" href="${esc(f.url)}">预览</a><a class="btn" href="${esc(download(f.url))}" download>下载文件</a></div>`).join('')||busy('尚无已保存的素材')}`;
     if(workTab==='history')html=`<div class="table-scroll"><table><thead><tr><th>采集时间</th><th>播放</th><th>点赞</th><th>评论</th><th>来源</th></tr></thead><tbody>${workDetail.history.map(r=>`<tr><td>${esc(r.fetched_at||r.fetch_date)}</td><td>${fmt(r.play_count)}</td><td>${fmt(r.digg_count)}</td><td>${fmt(r.comment_count)}</td><td>${esc(sources[r.metric_status||r.source]||r.metric_status||r.source||'主页作品')}</td></tr>`).join('')||'<tr><td colspan="5">暂无快照</td></tr>'}</tbody></table></div>`;
+    if(workTab==='comparison')html='<div data-comparison-host></div>';
     d.querySelector('[data-work-pane]').innerHTML=html;
+    if(workTab==='comparison')GuanchaoAudience.comparison(d.querySelector('[data-comparison-host]'),workDetail.comparison);
     const copy=d.querySelector('[data-copy-work]');if(copy)copy.onclick=async()=>{try{await navigator.clipboard.writeText(workDetail.description);copy.textContent='已复制';}catch{copy.textContent='复制失败';}};
   }
   async function openWork(id,keep=false){
-    const d=dialog('workDetailDialog','作品详情','work-detail-dialog'),body=d.querySelector('.product-dialog-body'),version=++workVersion;activeWork=id;if(!keep)workTab='caption';body.innerHTML=busy('正在读取作品明细');if(!d.open)d.showModal();
+    const d=dialog('workDetailDialog','作品详情','work-detail-dialog'),body=d.querySelector('.product-dialog-body'),version=++workVersion;activeWork=id;if(!keep)workTab='caption';body.innerHTML=busy('正在读取作品明细');openDialog(d);
     try{const detail=await api('/api/workbench/research?video='+id);if(version!==workVersion)return;workDetail=detail;const v=detail.video;
-      body.innerHTML=`<div class="modal-work-header">${picture(v.cover_path,'modal-work-cover')}<div><h3>${esc(v.title||v.aweme_id)}</h3><p>${esc(v.account_name)} · ${date(v.create_time)} 发布</p><div class="work-actions"><a class="btn" href="https://www.douyin.com/video/${v.aweme_id}" target="_blank" rel="noreferrer">原视频 ↗</a><button class="btn" data-inline-action="download" data-aid="${v.aweme_id}">下载视频</button><button class="btn" data-inline-action="comments" data-aid="${v.aweme_id}">采集评论</button><button class="btn primary" data-inline-action="playback" data-aid="${v.aweme_id}">更新数据</button></div></div></div>${metrics(v)}<nav class="research-tabs" aria-label="作品详情">${[['caption','发布文案'],['comments','评论 '+detail.comments.length],['media','视频素材'],['history','数据记录']].map(([k,t])=>`<button data-work-tab="${k}">${t}</button>`).join('')}</nav><div class="modal-work-pane" data-work-pane></div>`;
+      body.innerHTML=`<div class="modal-work-header">${picture(v.cover_path,'modal-work-cover')}<div><h3>${esc(v.title||v.aweme_id)}</h3><p>${esc(v.account_name)} · ${date(v.create_time)} 发布</p><div class="work-actions"><a class="btn" href="https://www.douyin.com/video/${v.aweme_id}" target="_blank" rel="noreferrer">原视频 ↗</a><button class="btn" data-inline-action="download" data-aid="${v.aweme_id}">下载视频</button><button class="btn" data-inline-action="comments" data-aid="${v.aweme_id}">采集评论</button><button class="btn primary" data-inline-action="playback" data-aid="${v.aweme_id}">更新数据</button></div></div></div>${metrics(v)}<nav class="research-tabs" aria-label="作品详情">${[['caption','发布文案'],['comments','评论 '+detail.comments.length],['media','视频素材'],['history','数据记录'],['comparison','样本对比']].map(([k,t])=>`<button data-work-tab="${k}">${t}</button>`).join('')}</nav><div class="modal-work-pane" data-work-pane></div>`;
+      if(detail.monitored===false){d.querySelector('[data-inline-action=playback]')?.remove();const b=document.createElement('button');b.className='btn primary';b.textContent='加入监控';d.querySelector('.work-actions').append(b);const quote=document.createElement('div');quote.hidden=true;d.querySelector('.modal-work-header').after(quote);b.onclick=()=>GuanchaoAudience.runInline(quote,{source:'monitor',aweme_id:id},{onComplete:()=>openWork(id,true)});}
       d.querySelectorAll('[data-work-tab]').forEach(b=>b.onclick=()=>{workTab=b.dataset.workTab;workPane();});workPane();
     }catch(e){if(version===workVersion)body.innerHTML=busy(e.message);}
   }
@@ -140,7 +156,7 @@
     const d=dialog('accountEditorDialog',id?'管理账号':'添加账号','account-editor-dialog'),body=d.querySelector('.product-dialog-body'),version=++editorVersion;
     d.querySelector('h2').textContent=id?'管理账号':'添加账号';
     const close=d.querySelector('.product-dialog-head [data-dismiss]');close.className='editor-close';close.type='button';close.setAttribute('aria-label','关闭弹窗');close.innerHTML='<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"></path></svg>';
-    body.innerHTML=busy('正在读取账号');if(!d.open)d.showModal();
+    body.innerHTML=busy('正在读取账号');openDialog(d);
     try{const a=id?(await api('/api/workbench/state')).accounts.find(x=>x.sec_uid===id):null;if(version!==editorVersion)return;if(id&&!a)throw Error('账号已移除');
       body.innerHTML=`<form id="accountEditorForm" class="account-editor-form"><div class="editor-fields">
         ${a?`<div class="editor-account-summary">${picture(a.avatar_path,'editor-avatar')}<div><strong>${esc(a.nickname||a.note||'未命名账号')}</strong><span>${roles[a.role]||'未分组'}</span></div><a href="${esc(a.profile_url)}" target="_blank" rel="noreferrer">打开主页<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3H3v10h10v-3M8 3h5v5M13 3l-7 7"></path></svg></a></div>`:''}
@@ -164,9 +180,10 @@
     else if(work){e.preventDefault();openWork(work.dataset.openWork);}
   });
   window.addEventListener('gc-data-updated',()=>{
+    document.querySelectorAll('dialog[data-suspended]').forEach(d=>d.dataset.needsRefresh='true');
     if(document.getElementById('workDetailDialog')?.open&&activeWork)openWork(activeWork,true);
     if(document.getElementById('accountDetailDialog')?.open&&activeAccount)openAccount(activeAccount,true);
   });
   initFilters();
-  window.Guanchao={esc,fmt,date,picture,api,download,roles,pagination,openAction,openAccount,openWork,openAccountEditor};
+  window.Guanchao={esc,fmt,date,picture,api,download,roles,pagination,openAction,openAccount,openWork,openAccountEditor,openDialog};
 })();
