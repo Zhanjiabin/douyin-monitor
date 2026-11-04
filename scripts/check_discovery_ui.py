@@ -40,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='discovery-browser-') as folder:
     store.init_db();d.init();corpus.init();playback.init();playback.save_settings({'api_key':'browser-fixture-key','max_calls_per_job':5,'daily_call_limit':100})
     intelligence.add_account(UID,'测试作者','own');intelligence.save_account_posts(UID,'测试作者',[{'aweme_id':AID,'title':'我的末日作品','create_time':1793500000}])
     with patch.object(tikhub.requests,'request',side_effect=transport):
-        for q in [{'source':'lowfan'},{'source':'rising'}]:
+        for q in [{'source':'lowfan'},{'source':'lowfan','category':'643'},{'source':'rising'}]:
             p=d.plan(q);d.execute({'query':p['query'],'confirmed':True,'fingerprint':p['fingerprint']})
     calls.clear()
     native_ready=patch.object(native_discovery,'ready',return_value='');native_ready.start()
@@ -54,10 +54,12 @@ with tempfile.TemporaryDirectory(prefix='discovery-browser-') as folder:
         with patch.object(tikhub.requests,'request',side_effect=transport),patch.object(native_discovery,'execute',side_effect=native_transport),sync_playwright() as p:
             browser=p.chromium.launch(channel='msedge',headless=True)
             page=browser.new_page(viewport={'width':1500,'height':980});page.on('pageerror',lambda e:errors.append(str(e)))
+            page.add_init_script("sessionStorage.setItem('gc-discovery-v2',JSON.stringify({works:{applied:{source:'native'},draft:{source:'native'}}}));")
             page.goto(base+'/discover');page.wait_for_selector('[data-select]')
             assert page.locator('#appNavigation a.is-active').inner_text()=='发现'
-            assert page.locator('#discoverySource').input_value()=='native'
-            assert 'AI创意视频' in page.locator('#discoveryKeyword').input_value()
+            assert page.locator('#discoverySource').input_value()=='lowfan'
+            assert page.locator('#discoveryCategory').input_value()=='643'
+            assert page.locator('#discoveryKeyword').input_value()==''
             assert not calls
             assert page.locator('.discover-work strong').first.evaluate('e=>e.getBoundingClientRect().right<=e.closest("td").getBoundingClientRect().right'), 'long title overflows its column'
             page.screenshot(path=str(OUT/'works-desktop.png'),full_page=True)
@@ -67,8 +69,15 @@ with tempfile.TemporaryDirectory(prefix='discovery-browser-') as folder:
             assert not page.locator('#discoveryQuote').is_visible()
             assert not calls
             page.click('#discoveryFilters button[type=reset]')
-            assert 'AI创意视频' in page.locator('#discoveryKeyword').input_value()
+            assert page.locator('#discoveryKeyword').input_value()==''
+            assert page.locator('#discoveryCategory').input_value()=='643'
             page.wait_for_function("!document.querySelector('#discoveryFeedback').textContent.includes('条件已修改')")
+            page.click('#discoveryFetch');page.wait_for_selector('[data-confirm]')
+            assert '使用 TikHub 额度' in page.locator('#discoveryQuote').inner_text()
+            assert not calls and not native_calls
+            page.select_option('#discoverySource','native');page.click('#discoveryFilters button[type=submit]')
+            page.wait_for_selector('[data-select]')
+            assert 'AI创意视频' in page.locator('#discoveryKeyword').input_value()
             page.click('#discoveryFetch');page.wait_for_selector('[data-confirm]')
             assert not calls
             assert '不消耗 TikHub 额度' in page.locator('#discoveryQuote').inner_text()
@@ -88,10 +97,13 @@ with tempfile.TemporaryDirectory(prefix='discovery-browser-') as folder:
             page.click('[data-view=hot]');page.wait_for_selector('[data-related]')
             assert page.locator('#appNavigation a.is-active').inner_text()=='发现'
             page.screenshot(path=str(OUT/'hot-desktop.png'),full_page=True)
-            assert page.locator('#discoverySource').input_value()=='native_hot'
-            page.select_option('#discoverySource','rising');page.click('#discoveryFilters button[type=submit]');page.wait_for_selector('[data-hot-trend]')
+            assert page.locator('#discoverySource').input_value()=='rising'
+            page.wait_for_selector('[data-hot-trend]')
             page.locator('[data-hot-trend]').first.click();page.wait_for_selector('#hotTrendDialog[open] svg')
             page.click('#hotTrendDialog [data-close]');assert not calls
+            page.locator('[data-related]').first.click();page.wait_for_function("document.querySelector('#discoverySource').value==='search'")
+            assert page.locator('#discoveryKeyword').input_value().startswith('热点测试')
+            assert not calls
             page.click('[data-view=keywords]');page.wait_for_selector('#addKeyword')
             page.fill('#addKeyword input','末日');page.click('#addKeyword button');page.wait_for_selector('[data-keyword-trend]')
             page.click('[data-keyword-trend]');page.wait_for_selector('#audienceDialog[open]')

@@ -57,10 +57,19 @@ class DiscoveryTests(unittest.TestCase):
             self.assertGreater(len(d.catalog()['categories']),30)
         transport.assert_not_called()
 
-    def test_native_defaults_are_ai_creative_and_no_paid_key_or_ledger_is_needed(self):
+    def test_default_tikhub_ai_board_planning_never_fetches_or_enables_batch(self):
+        with patch.object(tikhub.requests,'request') as paid,patch.object(native_discovery,'execute') as native:
+            p=d.prepare({})
+        self.assertEqual(p['query']['source'],'lowfan');self.assertEqual(p['query']['category'],'643')
+        self.assertTrue(p['paid']);self.assertEqual(p['calls'],1)
+        self.assertEqual(json.loads(p['requests'][0]['body_json'])['tags'],[{'value':643}])
+        self.assertFalse(playback.settings()['allow_batch_statistics'])
+        self.assertEqual(tikhub.usage(),0);paid.assert_not_called();native.assert_not_called()
+
+    def test_native_option_is_ai_creative_and_no_paid_key_or_ledger_is_needed(self):
         playback.save_settings({'api_key':''})
         with patch.object(native_discovery,'ready',return_value=''),patch.object(tikhub.requests,'request') as paid:
-            p=d.plan({})
+            p=d.plan({'source':'native'})
         self.assertEqual(p['query']['source'],'native');self.assertIn('AI创意视频',p['query']['keyword'])
         self.assertEqual(p['query']['limit'],100);self.assertTrue(p['allowed']);self.assertFalse(p['paid']);self.assertEqual(p['calls'],0)
         self.assertEqual(tikhub.usage(),0);paid.assert_not_called()

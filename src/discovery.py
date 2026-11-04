@@ -85,7 +85,7 @@ def integer(value,minimum,maximum,label):
 
 def query(data):
     if not isinstance(data,dict):raise ValueError('查询格式错误')
-    source=data.get('source','native')
+    source=data.get('source','lowfan')
     if source not in SOURCES:raise ValueError('请选择有效的数据类型')
     keyword=str(data.get('keyword') or '').strip()
     if len(keyword)>(240 if source=='native' else 80):raise ValueError('关键词过长')
@@ -100,7 +100,7 @@ def query(data):
         if days not in {0,1,7,180}:raise ValueError('Pro 支持不限、一天、一周和半年范围')
         return {'source':source,'keyword':keyword,'profile':profile,'limit':integer(data.get('limit',100),1,300,'采集数量'),
                 'days':days,'native_sort':integer(data.get('native_sort',1),0,2,'搜索排序')}
-    category=str(data.get('category') or '')
+    category=str(data.get('category', '643' if 'source' not in data else '') or '')
     if category and category not in {str(c['value']) for c in categories()}:raise ValueError('请选择接口支持的平台分类')
     result={'source':source}
     section=SOURCES[source][2]
