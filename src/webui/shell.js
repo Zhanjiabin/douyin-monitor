@@ -21,7 +21,7 @@
   const svg = key => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[key]}"/></svg>`;
   const sidebar = document.querySelector('aside.sidebar');
   sidebar.classList.add('gc-sidebar'); sidebar.id='appNavigation';
-  sidebar.innerHTML=`<a class="gc-brand" href="/home"><div class="gc-mark"><i></i><i></i><i></i></div><span>观潮</span></a><nav class="gc-nav" aria-label="主导航">${nav.map(([href,label,key,page],i)=>`<a href="${href}" ${page&&current==='screen'?`data-page="${page}"`:''} class="${i===2?'gc-nav-break':''}">${svg(key)}<span>${label}</span></a>`).join('')}</nav><div class="gc-sidebar-footer"><a class="gc-settings" href="/settings">${svg('settings')}<span>设置</span></a>${current==='screen'?'<button id="methodButton">指标口径</button>':''}${current==='manage'?'<span id="alertBadge" hidden></span>':''}</div>`;
+  sidebar.innerHTML=`<a class="gc-brand" href="/home"><div class="gc-mark"><i></i><i></i><i></i></div><span>观潮</span></a><nav class="gc-nav" aria-label="主导航">${nav.map(([href,label,key,page])=>`<a href="${href}" ${page&&current==='screen'?`data-page="${page}"`:''}>${svg(key)}<span>${label}</span></a>`).join('')}</nav><div class="gc-sidebar-footer"><a class="gc-settings" href="/settings">${svg('settings')}<span>设置</span></a>${current==='screen'?'<button id="methodButton">指标口径</button>':''}${current==='manage'?'<span id="alertBadge" hidden></span>':''}</div>`;
   const menu=document.createElement('button'); menu.type='button'; menu.className='gc-menu';
   menu.setAttribute('aria-label','打开导航');menu.setAttribute('aria-controls','appNavigation');menu.setAttribute('aria-expanded','false');menu.innerHTML='<span></span><span></span><span></span>';
   document.body.append(menu);
