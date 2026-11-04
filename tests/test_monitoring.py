@@ -164,9 +164,9 @@ class MonitoringTests(unittest.TestCase):
         monitoring.save(self.policy(enabled=False))
         self.assertIsNone(monitoring.tick(self.now.replace(hour=10)))
 
-    def test_budget_change_blocks_slot_without_partial_refresh_or_retry(self):
+    def test_daily_budget_change_blocks_slot_without_partial_refresh_or_retry(self):
         monitoring.save(self.policy())
-        playback.save_settings({"max_calls_per_job": 1})
+        playback.save_settings({"daily_call_limit": 1})
         with patch.object(douk, "submit") as submit:
             monitoring.tick(self.now.replace(hour=9, minute=1))
             monitoring.tick(self.now.replace(hour=9, minute=2))

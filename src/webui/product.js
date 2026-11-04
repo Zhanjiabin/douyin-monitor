@@ -76,7 +76,7 @@
     async function quote(){
       plan=null;const btn=body.querySelector('[data-confirm-action]');if(btn)btn.disabled=true;
       try{const signature=JSON.stringify(request),p=await api('/api/workbench/plan',request);if(version!==actionVersion||signature!==JSON.stringify(request))return;plan=p;
-        body.querySelector('[data-action-quote]').innerHTML=`<b>${p.units} ${request.action==='account'?'个账号':'条作品'} · 最多 ${p.calls} 次请求</b><span>${p.paid?'使用 TikHub 额度'+(request.action==='playback'?' · 单作品接口':''):'本机解析并保存到素材库'}</span>${p.reason?`<span class="error-text">${esc(p.reason)}</span>`:''}`;
+        body.querySelector('[data-action-quote]').innerHTML=`<b>${p.units} ${request.action==='account'?'个账号':'条作品'} · 最多 ${p.calls} 次请求</b><span>${p.paid?'使用 TikHub 额度'+(p.single_video_queue?' · 逐条调用单作品接口，同时最多 '+p.concurrency+' 条':''):'本机解析并保存到素材库'}</span>${p.reason?`<span class="error-text">${esc(p.reason)}</span>`:''}`;
         body.querySelector('[data-confirm-action]').disabled=!p.allowed;
       }catch(e){if(version===actionVersion){body.querySelector('[data-action-error]').textContent=e.message;}}
     }
@@ -84,8 +84,9 @@
       const snapshot=await api('/api/workbench/state');if(version!==actionVersion)return;
       const ids=new Set(request.video_ids||[]),works=snapshot.videos.filter(v=>ids.has(v.aweme_id));
       const account=snapshot.accounts.find(a=>a.sec_uid===request.account);
-      body.innerHTML=`${works.length?`<div class="action-work-list">${works.map(v=>`<div>${picture(v.cover_path)}<span>${esc(v.title)}<small>${esc(v.account_name)}</small></span></div>`).join('')}</div>`:account?`<p class="action-account">${esc(account.nickname||account.note)}</p>`:''}${['comments','account'].includes(request.action)?'<label class="action-pages">最多采集页数<select data-action-pages><option value="1">1 页 · 每页 20 条</option><option value="2">2 页</option><option value="3">3 页</option><option value="5">5 页</option></select></label>':''}<div class="action-quote" data-action-quote>正在预览</div><div class="action-progress" data-action-progress role="status"></div><p class="error-text" data-action-error role="alert"></p><div class="product-dialog-actions"><button class="btn" data-dismiss-action>取消</button><button class="btn primary" data-confirm-action disabled>${request.action==='download'?'确认下载':request.action==='playback'?'确认更新':'确认采集'}</button></div>`;
+      body.innerHTML=`${works.length?`<div class="action-work-list">${works.map(v=>`<div>${picture(v.cover_path)}<span>${esc(v.title)}<small>${esc(v.account_name)}</small></span></div>`).join('')}</div>`:account?`<p class="action-account">${esc(account.nickname||account.note)}</p>`:''}${['comments','account'].includes(request.action)?'<label class="action-pages">最多采集页数<select data-action-pages><option value="1">1 页 · 每页 20 条</option><option value="2">2 页</option><option value="3">3 页</option><option value="5">5 页</option></select></label>':''}<div class="action-quote" data-action-quote>正在预览</div><div class="action-progress" data-action-progress role="status"></div><p class="error-text" data-action-error role="alert"></p><div class="product-dialog-actions"><button class="btn" data-stop-action hidden>停止后续请求</button><button class="btn" data-dismiss-action>取消</button><button class="btn primary" data-confirm-action disabled>${request.action==='download'?'确认下载':request.action==='playback'?'确认更新':'确认采集'}</button></div>`;
       body.querySelector('[data-dismiss-action]').onclick=()=>d.close();
+      body.querySelector('[data-stop-action]').onclick=async e=>{e.currentTarget.disabled=true;try{await api('/api/douk/cancel',{id:jobId});e.currentTarget.hidden=true;}catch(error){body.querySelector('[data-action-error]').textContent=error.message;e.currentTarget.disabled=false;}};
       const pages=body.querySelector('[data-action-pages]');if(pages)pages.onchange=()=>{request.pages=Number(pages.value);quote();};
       body.querySelector('[data-confirm-action]').onclick=async()=>{
         if(submitting||!plan?.allowed)return;submitting=true;body.querySelector('[data-confirm-action]').disabled=true;if(pages)pages.disabled=true;
@@ -95,9 +96,10 @@
       };
       async function poll(){
         try{const j=await api('/api/douk/jobs/'+jobId);
-          if(version===actionVersion)body.querySelector('[data-action-progress]').textContent=(statusNames[j.status]||j.status)+(j.message?' · '+j.message:'');
-          if(['queued','running'].includes(j.status)){timer=setTimeout(poll,1500);return;}
-          if(['completed','partial'].includes(j.status))window.dispatchEvent(new CustomEvent('gc-data-updated',{detail:{...request,jobId}}));
+          const active=['queued','running'].includes(j.status)||(j.status==='cancelled'&&j.progress?.running>0);
+          if(version===actionVersion){if(request.action==='playback')jobProgress(body.querySelector('[data-action-progress]'),j,{videos:works});else body.querySelector('[data-action-progress]').textContent=(statusNames[j.status]||j.status)+(j.message?' · '+j.message:'');const stop=body.querySelector('[data-stop-action]');stop.hidden=!active||j.status==='cancelled';}
+          if(active){timer=setTimeout(poll,1000);return;}
+          if(['completed','partial'].includes(j.status)||j.result?.imported?.playback)window.dispatchEvent(new CustomEvent('gc-data-updated',{detail:{...request,jobId}}));
           if(version!==actionVersion)return;
           if(j.result?.errors?.length)body.querySelector('[data-action-error]').textContent=j.result.errors.map(e=>e.error).join('；');
           if(j.status==='completed')body.querySelector('[data-action-progress]').classList.add('done');
@@ -105,6 +107,18 @@
       }
       await quote();
     }catch(e){if(version===actionVersion)body.innerHTML=busy(e.message);}
+  }
+  function jobProgress(host,job,{videos=[],showItems=true}={}){
+    const p=job.progress||{},r=job.result||{},total=p.total||job.refresh_total||r.requested||0;
+    host.hidden=!total;if(!total)return;
+    const rows=p.items||r.refresh_items||videos.map(v=>({aweme_id:v.aweme_id,status:'pending'}));
+    const identities=new Map(videos.map(v=>[v.aweme_id,v]));
+    const done=p.done??r.attempted??0,active=['queued','running'].includes(job.status)||(job.status==='cancelled'&&p.running>0);
+    const names={pending:'等待',running:'刷新中',completed:'已更新',failed:'失败',not_returned:'未返回播放',stopped:'未执行'};
+    const count=status=>rows.filter(x=>x.status===status).length;
+    const previous=host.querySelector('.refresh-result-list')?.scrollTop||0;
+    host.innerHTML=`<div class="refresh-progress-head" role="status" aria-live="polite"><b>${esc(job.status==='cancelled'&&active?'正在停止':statusNames[job.status]||job.status)}<span>${done} / ${total}</span></b><small>${active&&p.concurrency?'同时最多 '+p.concurrency+' 条':''}</small></div><progress class="refresh-progress-bar" value="${done}" max="${total}" aria-label="作品刷新进度"></progress><div class="refresh-progress-summary"><span>已更新 ${p.succeeded??count('completed')}</span>${(p.failed??count('failed'))?`<span class="error-text">失败 ${p.failed??count('failed')}</span>`:''}${(p.missing??count('not_returned'))?`<span>未返回播放 ${p.missing??count('not_returned')}</span>`:''}${(p.stopped??count('stopped'))?`<span>未执行 ${p.stopped??count('stopped')}</span>`:''}${active?`<span>刷新中 ${p.running??0} · 等待 ${p.pending??total}</span>`:''}</div>${showItems&&rows.length?`<div class="refresh-result-list">${rows.map(x=>{const v=identities.get(x.aweme_id);return `<div class="refresh-result-row" data-refresh-item="${esc(x.aweme_id)}" data-status="${esc(x.status)}"><div><span>${esc(v?.title||x.aweme_id)}</span>${x.message?`<small>${esc(x.message)}</small>`:''}</div><b class="refresh-item-status ${esc(x.status)}">${x.status==='completed'&&x.play_count!=null?fmt(x.play_count)+' 播放':names[x.status]||esc(x.status)}</b></div>`;}).join('')}</div>`:''}`;
+    const list=host.querySelector('.refresh-result-list');if(list)list.scrollTop=previous;
   }
   let accountVersion=0,activeAccount=null,accountData=null,accountFilter={q:'',topic:'',period:'',sort:'new'},accountPage=0;
   let pageCount=50;
@@ -185,5 +199,5 @@
     if(document.getElementById('accountDetailDialog')?.open&&activeAccount)openAccount(activeAccount,true);
   });
   initFilters();
-  window.Guanchao={esc,fmt,date,picture,api,download,roles,pagination,openAction,openAccount,openWork,openAccountEditor,openDialog};
+  window.Guanchao={esc,fmt,date,picture,api,download,roles,pagination,jobProgress,openAction,openAccount,openWork,openAccountEditor,openDialog};
 })();

@@ -321,6 +321,8 @@ def submit(data):
                  "download": bool(data.get("download")), "count": 0}
         if endpoint == "tikhub_api":
             value.update(platform="api", operation_id=request["operation_id"])
+            if preview["single_video_queue"]:
+                value.update(refresh_total=preview["calls"], concurrency=preview["concurrency"])
         atomic(directory / "meta.json", value)
         QUEUE.append(job_id)
         if not STARTED:

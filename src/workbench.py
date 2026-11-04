@@ -99,6 +99,8 @@ def prepare(data):
     request = {"endpoint": "tikhub_api", "operation_id": op_id(api_action), "params": {},
                "items_json": json.dumps(items, ensure_ascii=False), "page_limit": pages,
                "import_results": True, "title": titles[action]}
+    if action == "playback" and data.get("playback_method", "single") == "single":
+        request.update(single_video_queue=True, concurrency=data.get("concurrency", 3))
     preview = tikhub.plan(request)
     return {**preview, "action": action, "paid": True, "units": units, "title": titles[action],
             "provider": "TikHub", "request": request,

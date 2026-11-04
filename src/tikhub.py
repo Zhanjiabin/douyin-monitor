@@ -4,11 +4,13 @@ The pinned catalog is the only route authority. Planning is offline. A paid requ
 is reserved in playback_requests before transport, never retried or redirected.
 """
 import copy
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from functools import lru_cache
 import hashlib
 import json
 import math
 import re
+import threading
 import time
 from urllib.parse import quote, quote_plus, urlsplit
 
@@ -253,6 +255,24 @@ def prepare(op, params, body_json=None):
     return {"params": values, "body": body}
 
 
+def statistics_queue(request, op, prepared, pages):
+    """Only the single-video statistics adapter may use the concurrent queue."""
+    if not request.get("single_video_queue"):
+        return None
+    if request["single_video_queue"] is not True or op["path"] != APP + "fetch_video_statistics" or pages != 1:
+        raise ValueError("逐条刷新队列只支持单作品播放统计接口")
+    identifiers = []
+    for item in prepared:
+        group = playback.ids(str(item["params"].get("aweme_ids", "")).split(","))
+        if len(group) != 1 or group[0] in identifiers:
+            raise ValueError("逐条刷新每个请求必须是一个不同的作品 ID")
+        identifiers.extend(group)
+    workers = request.get("concurrency", 3)
+    if isinstance(workers, bool) or not re.fullmatch(r"[1-5]", str(workers)):
+        raise ValueError("同时刷新数量需为 1 至 5")
+    return {"kind": "single_video_queue", "concurrency": min(int(workers), len(prepared))}
+
+
 def compile_request(request):
     op = operation(request.get("operation_id"))
     base = prepare(op, request.get("params", {}), request.get("body_json")) if not request.get("items_json") else None
@@ -279,6 +299,9 @@ def compile_request(request):
         raise ValueError("此接口不支持自动分页，请使用单次或批量请求")
     canonical = {"operation": op["operationId"], "version": spec()["info"]["version"],
                  "requests": prepared, "pages": pages, "import_results": request.get("import_results") is True}
+    execution = statistics_queue(request, op, prepared, pages)
+    if execution:
+        canonical["execution"] = execution
     fingerprint = hashlib.sha256(json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
     return op, prepared, pages, fingerprint
 
@@ -290,12 +313,13 @@ def usage():
 
 def plan(request):
     op, prepared, pages, fingerprint = compile_request(request)
+    execution = statistics_queue(request, op, prepared, pages)
     cfg, used = playback.settings(), usage()
     calls = len(prepared) * pages
     reason = ""
     if brief(op)["auth"] and not cfg["key_set"]:
         reason = "未配置 TikHub API Key"
-    elif calls > cfg["max_calls_per_job"]:
+    elif not execution and calls > cfg["max_calls_per_job"]:
         reason = "请求上限超过单次任务限额"
     elif calls + used > cfg["daily_call_limit"]:
         reason = "请求上限超过今日剩余额度"
@@ -304,6 +328,7 @@ def plan(request):
     return {"operation": brief(op), "calls": calls, "batches": len(prepared), "page_limit": pages,
             "today_calls": used, "daily_limit": cfg["daily_call_limit"], "job_limit": cfg["max_calls_per_job"],
             "allowed": not reason, "reason": reason, "fingerprint": fingerprint,
+            "single_video_queue": bool(execution), "concurrency": execution["concurrency"] if execution else 1,
             "preview": redact(prepared, request), "pricing": "https://tikhub.io/zh/pricing#plans"}
 
 
@@ -457,6 +482,103 @@ def import_response(op, body, params, job_id=""):
     return {"imported": 0}
 
 
+def execute_statistics_queue(request, preview, prepared, progress, cancelled):
+    """Bounded fan-out, one ID per request, using the shared budget and adapter.
+
+    The ordinary per-job cap applies to each one-request child. The explicitly
+    selected queue is limited by the daily budget, with every HTTP attempt
+    reserved under playback.LOCK. Completed children are never replayed.
+    """
+    items = [{"aweme_id": str(item["params"]["aweme_ids"]), "status": "pending"} for item in prepared]
+    results, stop, reason = {}, threading.Event(), ""
+    workers = preview["concurrency"]
+
+    def publish():
+        counts = {status: sum(i["status"] == status for i in items) for status in
+                  ("pending", "running", "completed", "failed", "not_returned", "stopped")}
+        progress({"done": counts["completed"] + counts["failed"] + counts["not_returned"],
+                  "total": len(items), "succeeded": counts["completed"], "failed": counts["failed"],
+                  "missing": counts["not_returned"], "running": counts["running"],
+                  "pending": counts["pending"], "stopped": counts["stopped"],
+                  "count": sum(len(r.get("data", [])) for r in results.values()),
+                  "concurrency": workers, "items": copy.deepcopy(items)})
+
+    def run(index):
+        child = {k: v for k, v in request.items() if k not in {"single_video_queue", "concurrency", "fingerprint", "params"}}
+        child.update(params={}, items_json=json.dumps([{"params": prepared[index]["params"]}], ensure_ascii=False))
+        child["_statistics_queue_child"] = True
+        try:
+            child["fingerprint"] = plan(child)["fingerprint"]
+            return execute(child, cancelled=lambda: stop.is_set() or cancelled())
+        except Exception:
+            # Re-read only public guards; never expose an unexpected transport error.
+            p = plan(child)
+            return {"ok": False, "data": [], "receipts": [], "errors": [{"error": p["reason"] or "该作品刷新未完成，请查看请求记录"}], "guard_blocked": True}
+
+    publish()
+    next_item = 0
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="video-refresh") as pool:
+        pending = {}
+        while pending or next_item < len(items):
+            if cancelled():
+                reason = "已停止后续刷新，在途请求结束后保留结果"
+                stop.set()
+            while not stop.is_set() and len(pending) < workers and next_item < len(items):
+                items[next_item]["status"] = "running"
+                pending[pool.submit(run, next_item)] = next_item
+                next_item += 1
+            publish()
+            if not pending:
+                break
+            ready, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for future in ready:
+                index = pending.pop(future)
+                result = future.result()
+                results[index] = result
+                receipts = result.get("receipts", [])
+                errors = result.get("errors", [])
+                row = items[index]
+                if any(r.get("http_status") in {401, 402, 403, 429} for r in receipts) or result.get("guard_blocked"):
+                    reason = errors[0]["error"] if errors else "接口暂不可用，已停止后续刷新"
+                    stop.set()
+                if receipts:
+                    row["status"] = "failed" if errors or not result["ok"] else "not_returned"
+                    if row["status"] != "failed":
+                        body = receipts[0].get("response", {})
+                        try:
+                            parsed = playback.parse(body, "app", [row["aweme_id"]])
+                            play_count = next((r["play_count"] for r in parsed if r["aweme_id"] == row["aweme_id"]), None)
+                            if play_count is not None:
+                                row.update(status="completed", play_count=play_count)
+                        except ValueError:
+                            row["status"] = "failed"
+                    if errors:
+                        row["message"] = errors[0]["error"]
+                else:
+                    row.update(status="stopped", message=errors[0]["error"] if errors else reason or "已停止")
+            publish()
+    for row in items:
+        if row["status"] in {"pending", "running"}:
+            row.update(status="stopped", message=reason or "未执行")
+    publish()
+    receipts, data, errors, imported = [], [], [], {}
+    for index, result in sorted(results.items()):
+        receipts.extend({**r, "batch": index + 1} for r in result.get("receipts", []))
+        data.extend(result.get("data", []))
+        errors.extend({**e, "batch": index + 1, "aweme_id": items[index]["aweme_id"]} for e in result.get("errors", []))
+        for key, value in result.get("imported", {}).items():
+            imported[key] = imported.get(key, 0) + value
+    if reason and not any(e["error"] == reason for e in errors):
+        errors.append({"error": reason})
+    succeeded = sum(r["status"] == "completed" for r in items)
+    failed = sum(r["status"] == "failed" for r in items)
+    missing = sum(r["status"] == "not_returned" for r in items)
+    return {"ok": any(r["ok"] for r in receipts), "data": data, "errors": errors, "receipts": receipts,
+            "operation": preview["operation"], "attempted": len(receipts), "requested": len(items),
+            "imported": imported, "cancelled": cancelled(), "refresh_items": items,
+            "message": f"已更新 {succeeded} 条，失败 {failed} 条，未返回播放 {missing} 条，未执行 {sum(r['status']=='stopped' for r in items)} 条"}
+
+
 def execute(request, progress=lambda _: None, cancelled=lambda: False):
     request = copy.deepcopy(request)
     preview = plan(request)
@@ -465,6 +587,8 @@ def execute(request, progress=lambda _: None, cancelled=lambda: False):
     if not preview["allowed"]:
         raise ValueError(preview["reason"])
     op, prepared, pages, _ = compile_request(request)
+    if preview["single_video_queue"]:
+        return execute_statistics_queue(request, preview, prepared, progress, cancelled)
     cursor = detail(op["operationId"])["cursor_parameter"]
     receipts, all_rows, errors, imported, calls = [], [], [], {}, 0
     halted = False
@@ -530,7 +654,8 @@ def execute(request, progress=lambda _: None, cancelled=lambda: False):
                     rows = records(body)
                     receipt["ok"] = True
                 all_rows.extend(redact(rows, request))
-                if request.get("import_results") is True and not cancelled() and not receipt.get("redirect_url"):
+                finish_statistics = request.get("_statistics_queue_child") is True and op["path"] == APP + "fetch_video_statistics"
+                if request.get("import_results") is True and (not cancelled() or finish_statistics) and not receipt.get("redirect_url"):
                     try:
                         counts = import_response(op, redact(body, request), params, request.get("job_id", ""))
                         for key, value in counts.items():
