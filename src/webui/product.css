@@ -185,3 +185,12 @@ body[data-app=screen] #rankBody td.num{text-align:right}body[data-app=screen] #r
 th.sort-number>.gc-sort-button{flex-direction:row-reverse;justify-content:flex-start}
 
 #accountDetailDialog .modal-work>.image-fallback{flex:0 0 36px}#accountDetailDialog .modal-work>img{flex:0 0 36px}
+
+/* Settings tabs share one viewport-sized frame; only their contents scroll. */
+body[data-page=settings] .wb-main{width:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+body[data-page=settings] .settings-page{width:100%;min-width:0;min-height:0;flex:1;display:flex;flex-direction:column;overflow:hidden}
+.settings-page .settings-tabs{flex-shrink:0}
+.settings-page .settings-tab-panel{width:100%;min-width:0;min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:thin;align-content:start;grid-auto-rows:max-content;gap:0;border:1px solid var(--border);border-radius:8px;background:var(--theme-surface,#fff)}
+.settings-tab-panel>.panel{border:0;border-radius:0;box-shadow:none}
+.settings-tab-panel>.panel+.panel{border-top:1px solid var(--border)}
+.settings-page .connection-panel{max-width:none}
