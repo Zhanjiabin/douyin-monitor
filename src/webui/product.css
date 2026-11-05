@@ -172,3 +172,16 @@ body[data-page=home] .pagination select,body[data-page=home] .pagination .btn{he
 #workDetailDialog.showing-history.short-history{height:fit-content}
 #workDetailDialog.short-history .modal-work-pane,#workDetailDialog.short-history [data-metric-history],#workDetailDialog.short-history .metric-history{flex:0 1 auto}
 #workDetailDialog.short-history .metric-history-scroll{flex:0 1 auto;max-height:40dvh}
+
+/* Shared column sorting: headings align with the values below them. */
+th.sort-number,td.sort-number{text-align:right!important}
+th>.gc-sort-button{display:inline-flex;align-items:center;justify-content:inherit;gap:7px;width:100%;min-height:21px;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-weight:inherit;text-align:inherit;white-space:nowrap;border-radius:2px;cursor:pointer}
+th.sort-number>.gc-sort-button{justify-content:flex-end}.gc-sort-button:hover{color:#276e95}.gc-sort-button:focus-visible{outline:2px solid #80aec8;outline-offset:3px}.gc-sort-arrows{display:inline-flex;flex-direction:column;gap:3px;flex-shrink:0;width:7px;align-items:center}.gc-sort-arrows>i{width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-bottom:4px solid #becbd5}.gc-sort-arrows>i:last-child{border-bottom:0;border-top:4px solid #becbd5}.gc-sort-arrows>i.is-on{border-bottom-color:#277da3}.gc-sort-arrows>i:last-child.is-on{border-top-color:#277da3}th[aria-sort=ascending],th[aria-sort=descending]{color:#28769b!important}
+.metric-value{display:inline-block;font-variant-numeric:tabular-nums;white-space:nowrap;cursor:default}
+body[data-app=screen] #rankBody td.num{text-align:right}body[data-app=screen] #rankBody td.num>.metric-value{font-weight:500}body[data-app=screen] #rankBody td.num>small{font-weight:400}body[data-app=screen] #rankBody .date-cell{white-space:nowrap}body[data-app=screen] #rankBody~*{font-variant-numeric:tabular-nums}body[data-app=screen] .screen-results .table-scroll>table:has(#rankBody){min-width:1300px}
+#accountDetailDialog .account-works-scroll table{min-width:1150px;table-layout:fixed}#accountDetailDialog .account-works-scroll th:first-child{width:auto}#accountDetailDialog .account-works-scroll th:nth-child(2){width:108px}#accountDetailDialog .account-works-scroll th:nth-child(3){width:122px}#accountDetailDialog .account-works-scroll th:nth-child(n+4):nth-child(-n+8){width:82px}#accountDetailDialog .account-works-scroll th:last-child{width:155px}#accountDetailDialog .account-works-scroll .date-cell{font-size:10px;color:#879dac;line-height:1.7}#accountDetailDialog .account-works-scroll .sort-number{font-size:12px}#accountDetailDialog .account-works-scroll th.sort-number{font-size:10px}#accountDetailDialog .gc-sort-button{font-size:inherit}#accountDetailDialog .account-works-scroll td:nth-child(4) .metric-value{font-weight:600;color:#355e7a}
+
+/* Put arrows before right-aligned numeric headings, keeping text/value edges equal. */
+th.sort-number>.gc-sort-button{flex-direction:row-reverse;justify-content:flex-start}
+
+#accountDetailDialog .modal-work>.image-fallback{flex:0 0 36px}#accountDetailDialog .modal-work>img{flex:0 0 36px}

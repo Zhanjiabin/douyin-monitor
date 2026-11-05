@@ -1,7 +1,8 @@
 (() => {
   'use strict';
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const fmt=n=>n==null?'—':n>=1e8?(n/1e8).toFixed(2)+'亿':n>=1e4?(n/1e4).toFixed(1)+'万':Number(n).toLocaleString('zh-CN');
+  const fmt=n=>n==null?'—':Math.abs(n)>=1e8?(n/1e8).toFixed(2)+'亿':Math.abs(n)>=1e4?(n/1e4).toFixed(1)+'万':Number(n).toLocaleString('zh-CN');
+  const metricNumber=n=>`<span class="metric-value" title="${n==null?'未取得数据':'完整数值：'+esc(Number(n).toLocaleString('zh-CN'))}">${fmt(n)}</span>`;
   const date=n=>n?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(n*1000)):'—';
   function timestamp(value,compact=false){
     if(!value)return '—';
@@ -12,6 +13,34 @@
     return compact?full.slice(5,16):full;
   }
   function updateTime(value,compact=false){return `<time class="metric-update-time" datetime="${esc(value||'')}" title="上次数据更新：${esc(timestamp(value))}">更新 ${esc(timestamp(value,compact))}</time>`;}
+  function timeValue(value){
+    if(value==null||value==='')return null;
+    if(typeof value==='number')return Number.isFinite(value)?value:null;
+    let raw=String(value);if(!/(Z|[+-]\d{2}:?\d{2})$/.test(raw))raw=raw.replace(' ','T')+(raw.length===10?'T00:00:00':'')+'+08:00';
+    const parsed=Date.parse(raw);return Number.isFinite(parsed)?parsed:null;
+  }
+  const collator=new Intl.Collator('zh-CN',{numeric:true,sensitivity:'base'});
+  function sortRows(rows,state,columns){
+    const col=columns.find(c=>c.key===state.key);if(!col)return [...rows];
+    const get=col.get||((r)=>r[col.key]),direction=state.direction==='asc'?1:-1;
+    const normalize=row=>{let v=get(row);if(v==null||v==='')return null;if(col.type==='date')return timeValue(v);if(col.type==='number'){v=Number(v);return Number.isFinite(v)?v:null;}return String(v);};
+    return rows.map((row,index)=>({row,index,value:normalize(row)})).sort((a,b)=>{
+      if(a.value==null||b.value==null)return a.value==null&&b.value==null?a.index-b.index:a.value==null?1:-1;
+      const order=col.type==='number'||col.type==='date'?a.value-b.value:collator.compare(a.value,b.value);
+      return order*direction||a.index-b.index;
+    }).map(x=>x.row);
+  }
+  function sortHead(columns,state){
+    return '<tr>'+columns.map(c=>{
+      const cls=[c.className,c.align==='right'||(c.align!=='left'&&c.type==='number')?'sort-number':''].filter(Boolean).join(' ');
+      if(!c.key)return `<th class="${cls}">${c.html||esc(c.label)}</th>`;
+      const active=state.key===c.key,initial=c.type==='number'||c.type==='date'?'desc':'asc',next=active?(state.direction==='asc'?'desc':'asc'):initial;
+      return `<th class="${cls}" aria-sort="${active?(state.direction==='asc'?'ascending':'descending'):'none'}"><button type="button" class="gc-sort-button" data-sort-key="${esc(c.key)}" data-sort-initial="${initial}" title="${esc(c.label)} · 点击${next==='asc'?'升序':'降序'}" aria-label="${esc(c.label)}，${active?'当前'+(state.direction==='asc'?'升序':'降序')+'，':''}点击${next==='asc'?'升序':'降序'}"><span>${esc(c.label)}</span><span class="gc-sort-arrows" aria-hidden="true"><i class="${active&&state.direction==='asc'?'is-on':''}"></i><i class="${active&&state.direction==='desc'?'is-on':''}"></i></span></button></th>`;
+    }).join('')+'</tr>';
+  }
+  function bindSort(root,state,onChange){root.querySelectorAll('[data-sort-key]').forEach(b=>b.onclick=()=>{
+    const key=b.dataset.sortKey;state.direction=state.key===key?(state.direction==='asc'?'desc':'asc'):b.dataset.sortInitial;state.key=key;onChange();
+  });}
   const picture=(src,cls='')=>src?`<img class="${cls}" src="${esc(src)}" alt="" loading="lazy">`:`<span class="image-fallback ${cls}">影</span>`;
   const sources={discovery:'发现榜单',tikhub_app:'TikHub · 单作品统计',tikhub_app_batch:'TikHub · 批量统计',tikhub_app_v3:'TikHub · 作品详情',tikhub_xingtu:'星图统计',public_mix_metric:'合集统计',public:'主页作品',not_exposed:'主页作品',author_post:'主页作品',douk_detail:'视频详情',mcpro_python:'平台采集'};
   const roles={own:'自有',peer:'同行',unclassified:'未分组'};
@@ -131,10 +160,15 @@
   }
   let accountVersion=0,activeAccount=null,accountData=null,accountFilter={q:'',topic:'',period:'',sort:'new'},accountPage=0;
   let pageCount=50;
-  function accountWorks(){return accountData.videos.filter(v=>v.sec_uid===activeAccount&&(!accountFilter.q||(v.title+' '+v.aweme_id).toLowerCase().includes(accountFilter.q))&&(!accountFilter.topic||v.topic===accountFilter.topic)&&(!accountFilter.period||v.create_time>=Date.now()/1000-Number(accountFilter.period)*86400)).sort((a,b)=>accountFilter.sort==='play'?(b.play_count??-1)-(a.play_count??-1):(b.create_time||0)-(a.create_time||0));}
+  const metricColumns=['play_count','digg_count','comment_count','collect_count','share_count'].map((key,i)=>({key,label:['播放','点赞','评论','收藏','分享'][i],type:'number'}));
+  const accountColumns=[{key:'title',label:'作品',className:'account-work-column'},{key:'create_time',label:'发布时间',type:'date',get:r=>r.create_time||null},{key:'metrics_updated_at',label:'数据更新',type:'date'},...metricColumns,{label:'操作',className:'account-actions-column'}];
+  const accountSort={key:'create_time',direction:'desc'};
+  function accountWorks(){return sortRows(accountData.videos.filter(v=>v.sec_uid===activeAccount&&(!accountFilter.q||(v.title+' '+v.aweme_id).toLowerCase().includes(accountFilter.q))&&(!accountFilter.topic||v.topic===accountFilter.topic)&&(!accountFilter.period||v.create_time>=Date.now()/1000-Number(accountFilter.period)*86400)),accountSort,accountColumns);}
   function accountRows(){
     const d=document.getElementById('accountDetailDialog'),all=accountWorks();accountPage=Math.min(accountPage,Math.max(0,Math.ceil(all.length/pageCount)-1));
-    d.querySelector('[data-account-rows]').innerHTML=all.slice(accountPage*pageCount,(accountPage+1)*pageCount).map(v=>`<tr><td><button class="modal-work" data-open-work="${v.aweme_id}">${picture(v.cover_path)}<span><strong>${esc(v.title||v.aweme_id)}</strong><small>${date(v.create_time)} · ${esc(v.topic||'未识别')}</small></span></button></td><td>${fmt(v.play_count)}<small class="cell-note">${esc(timestamp(v.metrics_updated_at,true))}</small></td><td>${fmt(v.digg_count)}</td><td>${fmt(v.comment_count)}</td><td>${fmt(v.collect_count)}</td><td>${fmt(v.share_count)}</td><td><div class="row-work-actions"><button class="btn row-update" data-inline-action="playback" data-aid="${v.aweme_id}">更新数据</button><div><button class="text-link" data-open-work="${v.aweme_id}">详情</button><button class="text-link" data-inline-action="download" data-aid="${v.aweme_id}">下载</button></div></div></td></tr>`).join('')||'<tr><td colspan="7">没有符合条件的作品</td></tr>';
+    d.querySelector('.account-works-scroll thead').innerHTML=sortHead(accountColumns,accountSort);
+    bindSort(d.querySelector('.account-works-scroll thead'),accountSort,()=>{accountPage=0;accountFilter.sort='header';d.querySelector('[name=sort]').value='header';accountRows();d.querySelector('.account-works-scroll').scrollTop=0;});
+    d.querySelector('[data-account-rows]').innerHTML=all.slice(accountPage*pageCount,(accountPage+1)*pageCount).map(v=>`<tr><td><button class="modal-work" data-open-work="${v.aweme_id}">${picture(v.cover_path)}<span><strong>${esc(v.title||v.aweme_id)}</strong><small>${esc(v.topic||'未识别')}</small></span></button></td><td class="date-cell">${esc(date(v.create_time)).replace(' ','<br>')}</td><td class="date-cell">${esc(timestamp(v.metrics_updated_at)).replace(' ','<br>')}</td>${metricColumns.map(c=>`<td class="sort-number">${metricNumber(v[c.key])}</td>`).join('')}<td><div class="row-work-actions"><button class="btn row-update" data-inline-action="playback" data-aid="${v.aweme_id}">更新数据</button><div><button class="text-link" data-open-work="${v.aweme_id}">详情</button><button class="text-link" data-inline-action="download" data-aid="${v.aweme_id}">下载</button></div></div></td></tr>`).join('')||'<tr><td colspan="9">没有符合条件的作品</td></tr>';
     pagination(d.querySelector('[data-account-pagination]'),{total:all.length,page:accountPage,pageSize:pageCount,unit:'条作品',onChange:(page,size)=>{accountPage=page;pageCount=size;accountRows();d.querySelector('.account-works-scroll').scrollTop=0;}});
   }
   async function openAccount(id,keep=false){
@@ -142,22 +176,25 @@
     const previousForm=keep?d.querySelector('[data-account-form]'):null;
     const draft=previousForm?Object.fromEntries(new FormData(previousForm)):null;
     const previousScroll=keep?(d.querySelector('.account-works-scroll')?.scrollTop||0):0;
-    if(!keep){accountFilter={q:'',topic:'',period:'',sort:'new'};accountPage=0;}activeAccount=id;body.innerHTML=busy('正在读取账号明细');openDialog(d);
+    if(!keep){accountFilter={q:'',topic:'',period:'',sort:'new'};Object.assign(accountSort,{key:'create_time',direction:'desc'});accountPage=0;}activeAccount=id;body.innerHTML=busy('正在读取账号明细');openDialog(d);
     try{const s=await api('/api/workbench/state');if(version!==accountVersion)return;accountData=s;const a=s.accounts.find(x=>x.sec_uid===id);if(!a)throw Error('账号已移除');
       const works=s.videos.filter(v=>v.sec_uid===id),topics=[...new Set(works.map(v=>v.topic).filter(Boolean))],latest=[...works].sort((x,y)=>(y.create_time||0)-(x.create_time||0))[0];
       d.querySelector('.product-dialog-head').innerHTML=`<div class="compact-account-heading">${picture(a.avatar_path,'account-detail-avatar')}<div><h2 id="accountDetailDialogTitle">${esc(a.nickname||a.note||'未命名账号')}<span class="role-pill">${roles[a.role]||'未分组'}</span><span class="monitor-pill ${a.enabled?'on':''}">${a.enabled?'监控中':'已暂停'}</span></h2><p>最近发布 ${date(latest?.create_time)}<span>同步 ${esc(a.last_scan_at||'尚未同步')}</span></p></div></div><div class="compact-account-actions"><a class="btn" href="/analytics?account=${encodeURIComponent(id)}">数据统计</a><a class="btn" target="_blank" rel="noreferrer" href="https://www.douyin.com/user/${encodeURIComponent(id)}">抖音主页 ↗</a><button class="btn primary" data-inline-action="account" data-inline-account="${esc(id)}">同步作品</button><button class="btn" data-edit-account="${esc(id)}">管理</button><button class="btn" data-dismiss>关闭</button></div>`;
-      body.innerHTML=`        <div class="filter-layout modal-filter-layout"><form class="filter-panel filter-bar" id="accountWorkFilters" data-account-form><label><span class="filter-label">作品 / ID</span><input name="q" placeholder="搜索标题或作品 ID" value="${esc(accountFilter.q)}"></label><label><span class="filter-label">题材</span><select name="topic"><option value="">全部题材</option>${topics.map(t=>`<option ${accountFilter.topic===t?'selected':''}>${esc(t)}</option>`).join('')}</select></label><label><span class="filter-label">发布时间</span><select name="period"><option value="">全部时间</option>${[7,30,90].map(n=>`<option value="${n}" ${accountFilter.period===String(n)?'selected':''}>最近 ${n} 天</option>`).join('')}</select></label><label><span class="filter-label">排序</span><select name="sort"><option value="new">最新发布</option><option value="play" ${accountFilter.sort==='play'?'selected':''}>播放量最高</option></select></label><div class="filter-buttons"><button class="btn primary" type="submit">搜索</button><button class="btn" type="reset">重置</button></div></form><div class="filter-results"><div class="table-scroll account-works-scroll"><table><thead><tr><th>作品 / 发布时间</th><th>播放 / 数据更新</th><th>点赞</th><th>评论</th><th>收藏</th><th>分享</th><th>操作</th></tr></thead><tbody data-account-rows></tbody></table></div><div data-account-pagination></div></div></div>`;
+      body.innerHTML=`        <div class="filter-layout modal-filter-layout"><form class="filter-panel filter-bar" id="accountWorkFilters" data-account-form><label><span class="filter-label">作品 / ID</span><input name="q" placeholder="搜索标题或作品 ID" value="${esc(accountFilter.q)}"></label><label><span class="filter-label">题材</span><select name="topic"><option value="">全部题材</option>${topics.map(t=>`<option ${accountFilter.topic===t?'selected':''}>${esc(t)}</option>`).join('')}</select></label><label><span class="filter-label">发布时间</span><select name="period"><option value="">全部时间</option>${[7,30,90].map(n=>`<option value="${n}" ${accountFilter.period===String(n)?'selected':''}>最近 ${n} 天</option>`).join('')}</select></label><label><span class="filter-label">排序</span><select name="sort"><option value="new">最新发布</option><option value="play" ${accountFilter.sort==='play'?'selected':''}>播放量最高</option><option value="header" ${accountFilter.sort==='header'?'selected':''}>按表头排序</option></select></label><div class="filter-buttons"><button class="btn primary" type="submit">搜索</button><button class="btn" type="reset">重置</button></div></form><div class="filter-results"><div class="table-scroll account-works-scroll"><table><thead><tr><th>作品 / 发布时间</th><th>播放 / 数据更新</th><th>点赞</th><th>评论</th><th>收藏</th><th>分享</th><th>操作</th></tr></thead><tbody data-account-rows></tbody></table></div><div data-account-pagination></div></div></div>`;
       const portrait=document.createElement('button');portrait.className='btn';portrait.textContent='粉丝画像';portrait.onclick=()=>GuanchaoAudience.open({source:'portrait',sec_uid:id},(a.nickname||a.note||'账号')+' · 粉丝画像');d.querySelector('.compact-account-actions').prepend(portrait);
-      initFilters(d);const form=d.querySelector('[data-account-form]');if(draft)Object.entries(draft).forEach(([key,value])=>{form.elements[key].value=value;});form.onsubmit=e=>{e.preventDefault();accountFilter=Object.fromEntries(new FormData(form));accountFilter.q=accountFilter.q.trim().toLowerCase();accountPage=0;accountRows();};form.onreset=e=>{e.preventDefault();form.elements.q.value='';form.elements.topic.value='';form.elements.period.value='';form.elements.sort.value='new';form.requestSubmit();};
+      initFilters(d);const form=d.querySelector('[data-account-form]');if(draft)Object.entries(draft).forEach(([key,value])=>{form.elements[key].value=value;});form.onsubmit=e=>{e.preventDefault();accountFilter=Object.fromEntries(new FormData(form));accountFilter.q=accountFilter.q.trim().toLowerCase();if(accountFilter.sort!=='header')Object.assign(accountSort,{key:accountFilter.sort==='play'?'play_count':'create_time',direction:'desc'});accountPage=0;accountRows();};form.onreset=e=>{e.preventDefault();form.elements.q.value='';form.elements.topic.value='';form.elements.period.value='';form.elements.sort.value='new';form.requestSubmit();};
       accountRows();d.querySelector('.account-works-scroll').scrollTop=previousScroll;
     }catch(e){if(version===accountVersion)body.innerHTML=busy(e.message);}
   }
   function historyTable(host,items){
-    const rows=[...items].sort((a,b)=>String(b.observed_at||b.fetched_at||b.fetch_date).localeCompare(String(a.observed_at||a.fetched_at||a.fetch_date))||(b.id||0)-(a.id||0));
+    const state={key:'observed_at',direction:'desc'},records=[...items].sort((a,b)=>(b.id||0)-(a.id||0));
+    const columns=[{key:'observed_at',label:'更新时间（北京时间）',type:'date',get:r=>r.observed_at||r.fetched_at||r.fetch_date},...metricColumns,{key:'play_delta',label:'播放变化',type:'number'},{key:'source',label:'来源 / 口径',get:r=>(sources[r.source||r.metric_status]||r.source||r.metric_status||'')+' '+(r.scope||'')}];
     let page=0,size=20;
-    host.innerHTML='<div class="metric-history"><div class="table-scroll metric-history-scroll"><table><thead><tr><th>更新时间（北京时间）</th><th>播放</th><th>点赞</th><th>评论</th><th>收藏</th><th>分享</th><th>播放变化</th><th>来源 / 口径</th></tr></thead><tbody></tbody></table></div><div data-history-pagination></div><p class="history-note">每次更新独立保存，缺失字段显示为 —。播放变化对比上一次同来源、同口径的记录；旧日快照仅包含此前保留下来的数据。</p></div>';
+    host.innerHTML='<div class="metric-history"><div class="table-scroll metric-history-scroll"><table><thead></thead><tbody></tbody></table></div><div data-history-pagination></div><p class="history-note">每次更新独立保存，缺失字段显示为 —。播放变化对比上一次同来源、同口径的记录；旧日快照仅包含此前保留下来的数据。</p></div>';
     const scopes={lifetime:'累计',cumulative:'累计',organic:'自然播放（供应商口径）',total:'含投流（供应商口径）',unspecified:'未标注',window:'窗口'};
     function draw(){
+      const rows=sortRows(records,state,columns);host.querySelector('thead').innerHTML=sortHead(columns,state);
+      bindSort(host.querySelector('thead'),state,()=>{page=0;draw();host.querySelector('.table-scroll').scrollTop=0;});
       host.querySelector('tbody').innerHTML=rows.slice(page*size,(page+1)*size).map(r=>`<tr><td>${esc(timestamp(r.observed_at||r.fetched_at||r.fetch_date))}${r.origin==='legacy_daily'?'<small class="cell-note">旧日快照</small>':''}</td>${['play_count','digg_count','comment_count','collect_count','share_count'].map(k=>`<td title="${r[k]==null?'本次未返回':esc(Number(r[k]).toLocaleString('zh-CN'))}">${r[k]==null?'—':Number(r[k]).toLocaleString('zh-CN')}</td>`).join('')}<td class="${r.play_delta>0?'history-positive':r.play_delta<0?'history-negative':''}">${r.play_delta==null?'—':(r.play_delta>0?'+':'')+Number(r.play_delta).toLocaleString('zh-CN')}</td><td>${esc(sources[r.source||r.metric_status]||r.source||r.metric_status||'主页作品')}<small class="cell-note">${esc(scopes[r.scope]||r.scope||'未标注')}</small></td></tr>`).join('')||'<tr><td colspan="8" class="history-empty">暂无更新记录，刷新作品数据后会保存在这里</td></tr>';
       pagination(host.querySelector('[data-history-pagination]'),{total:rows.length,page,pageSize:size,unit:'条记录',onChange:(p,s)=>{page=p;size=s;draw();host.querySelector('.table-scroll').scrollTop=0;}});
     }
@@ -222,5 +259,5 @@
     if(document.getElementById('accountDetailDialog')?.open&&activeAccount)openAccount(activeAccount,true);
   });
   initFilters();
-  window.Guanchao={esc,fmt,date,timestamp,updateTime,historyTable,picture,api,download,roles,pagination,jobProgress,openAction,openAccount,openWork,openAccountEditor,openDialog};
+  window.Guanchao={esc,fmt,metricNumber,timeValue,sortRows,sortHead,bindSort,date,timestamp,updateTime,historyTable,picture,api,download,roles,pagination,jobProgress,openAction,openAccount,openWork,openAccountEditor,openDialog};
 })();

@@ -133,7 +133,7 @@ with tempfile.TemporaryDirectory(prefix='analytics-ui-') as folder,patch.object(
             page.locator('#rankBody [data-account]').first.click()
             page.wait_for_selector('#accountDetailDialog [data-account-rows] tr')
             assert page.locator('#accountDetailDialog a[href^="/analytics?account="]').count()==1
-            assert page.locator('#accountDetailDialog .cell-note').first.inner_text()!='—'
+            assert page.locator('#accountDetailDialog .account-works-scroll .date-cell').first.inner_text()!='—'
             report['checks'].append('工作台、作品监控、账号弹窗均展示更新时间')
             page.goto(base+'/analytics?account='+OWN);page.wait_for_selector('#accountTotals canvas')
             page.click('[data-dimension=publication]')
