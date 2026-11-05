@@ -279,8 +279,11 @@ def update_mix_official(mix_id, fetch_date, play_vv=None, collect_vv=None,
 
 def save_video_snapshots(mix_id, episodes, fetch_date=None):
     init_db()
+    import metric_history
+    metric_history.init()
     fd = fetch_date or today_str()
     ts = now_str()
+    event_at = metric_history.timestamp()
     for e in episodes or []:
         x(
             """INSERT OR REPLACE INTO video_snapshots
@@ -292,6 +295,7 @@ def save_video_snapshots(mix_id, episodes, fetch_date=None):
              e.get("play_count"), e.get("digg_count"), e.get("comment_count"),
              e.get("share_count"), e.get("collect_count"), e.get("create_time")),
         )
+        metric_history.record({**e,"fetch_date":fd},source="public_mix_metric",observed_at=event_at)
     refresh_mix_first_publish(mix_id)
 
 

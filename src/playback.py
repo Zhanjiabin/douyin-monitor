@@ -166,8 +166,11 @@ def parse(body, mode, expected):
     return result
 
 
-def persist(rows):
+def persist(rows, event_key=""):
     init()
+    import metric_history
+    metric_history.init()
+    observed_at=metric_history.timestamp()
     for row in rows:
         if not store.q("SELECT aweme_id FROM tracked_account_videos WHERE aweme_id=?", (row["aweme_id"],)):
             continue
@@ -184,6 +187,7 @@ def persist(rows):
             THEN playback_measurements.request_id ELSE excluded.request_id END""",
           (row["aweme_id"], store.today_str(), store.now_str(), row["source"], row["scope"],
            row["play_count"], row["digg_count"], row["comment_count"], row["collect_count"], row["share_count"], row["request_id"]))
+        metric_history.record(row,observed_at=observed_at,event_key=event_key)
 
 
 def execute(request, progress, cancelled=lambda: False):
@@ -220,7 +224,7 @@ def execute(request, progress, cancelled=lambda: False):
             if cancelled():
                 store.x("UPDATE playback_requests SET status='cancelled' WHERE id=?", (rid,))
                 break
-            persist(rows)
+            persist(rows,event_key=f"playback-request:{rid}")
             result.extend(rows)
             omitted = [aid for aid in group if aid not in {row['aweme_id'] for row in rows}]
             for aid in omitted:

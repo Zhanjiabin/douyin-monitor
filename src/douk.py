@@ -145,8 +145,11 @@ def normalize(row, platform="douyin"):
             **{k: integer(stats.get(k, stats.get(v)), k == "play_count") for k, v in names.items()}}
 
 
-def import_rows(rows, platform="douyin", known_only=False, source="douk_detail"):
+def import_rows(rows, platform="douyin", known_only=False, source="douk_detail", event_key=""):
     init_tables()
+    import metric_history
+    metric_history.init()
+    observed_at=metric_history.timestamp()
     imported = valid = 0
     thumbnails = []
     if platform != "douyin":
@@ -185,6 +188,7 @@ def import_rows(rows, platform="douyin", known_only=False, source="douk_detail")
             collect_count=COALESCE(excluded.collect_count,external_video_observations.collect_count),
             share_count=COALESCE(excluded.share_count,external_video_observations.share_count)""",
             (aid, day, now, *metrics, source))
+        metric_history.record(item,source=source,observed_at=observed_at,event_key=event_key)
         status = "available" if item["play_count"] else "not_exposed"
         source_name = "TikHub App V3" if source == "tikhub_app_v3" else "DouK" if source == "douk_detail" else "多平台解析"
         message = source_name+" 接口返回有效播放量" if item["play_count"] else source_name+" 已取得作品数据，但播放量为 0 或缺失；不作为真实零播放入库"

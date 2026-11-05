@@ -226,6 +226,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file("workbench.html")
             if path in ("/workbench.js", "/workbench.css", "/monitoring-settings.js", "/screen-refresh.js", "/product.js", "/product.css"):
                 return self._file(path[1:])
+            if path == "/analytics":
+                return self._file("analytics.html")
+            if path in ("/analytics.js", "/analytics.css", "/vendor/echarts/echarts.min.js"):
+                return self._file(path[1:])
+            if path == "/api/analytics":
+                import analytics
+                args=parse_qs(urlparse(self.path).query)
+                return self._json(analytics.dashboard(args.get('account',[''])[0],args.get('days',['30'])[0],args.get('keyword',[''])[0]))
             if path == "/discover":
                 return self._file("discovery-hub.html")
             if path == "/discover/advanced":
@@ -683,6 +691,8 @@ def serve(port=None, open_browser=True):
     store.init_db()
     douk.init_tables()
     playback.init()
+    import metric_history
+    metric_history.init()
     corpus.init()
     discovery.init()
     n = store.reap_stale_runs()

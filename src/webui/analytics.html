@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>数据统计 · 观潮</title><link rel="stylesheet" href="/screen.css"><link rel="stylesheet" href="/shell.css"><link rel="stylesheet" href="/product.css"><link rel="stylesheet" href="/analytics.css"></head>
+<body data-app="analytics"><aside class="sidebar"></aside><div class="shell">
+<header class="topbar"><div class="topbar-title"><b>数据统计</b></div><div class="top-actions"><span class="analytics-local">已保存的监控数据</span><button class="btn" id="reloadAnalytics">刷新统计</button></div></header>
+<main class="analytics-main">
+<form id="analyticsFilters" class="analytics-filters">
+<label><span>监控账号</span><select name="account" aria-label="监控账号"><option value="">正在读取账号</option></select></label>
+<label><span>观测周期</span><select name="days" aria-label="观测周期"><option value="7">近 7 天</option><option value="30" selected>近 30 天</option><option value="90">近 90 天</option></select></label>
+<label class="analytics-query"><span>作品关键词</span><input name="keyword" placeholder="搜索当前账号的作品 / ID" maxlength="120" aria-label="作品关键词"></label>
+<div class="analytics-search"><button class="btn primary" type="submit">搜索</button><button class="btn" type="reset">重置</button></div><span id="analyticsFeedback" role="status" aria-live="polite"></span>
+</form>
+<p id="analyticsError" class="analytics-error" role="alert" hidden></p>
+<section class="analytics-account" id="analyticsAccount" aria-label="当前统计账号"></section>
+<div class="analytics-toolbar">
+<nav class="analytics-tabs" role="tablist" aria-label="统计维度"><button role="tab" type="button" data-dimension="trend" aria-selected="true">账号趋势</button><button role="tab" type="button" data-dimension="works" aria-selected="false">作品表现</button><button role="tab" type="button" data-dimension="publication" aria-selected="false">发布分析</button></nav>
+<div class="analytics-display"><select id="analyticsMetric" aria-label="统计指标"><option value="play_count">播放</option><option value="digg_count">点赞</option><option value="comment_count">评论</option><option value="collect_count">收藏</option><option value="share_count">分享</option></select><div class="analytics-segment" role="group" aria-label="展示方式"><button type="button" data-display="charts" aria-pressed="true">图表</button><button type="button" data-display="table" aria-pressed="false">数据明细</button></div><button class="btn" id="analyticsExport">导出</button></div>
+</div>
+<div id="analyticsContent" class="analytics-content" aria-busy="true"><div class="analytics-empty">正在读取统计数据…</div></div>
+<p class="analytics-method" id="analyticsMethod"></p>
+</main></div><script src="/shell.js"></script><script src="/product.js"></script><script src="/audience.js"></script><script src="/vendor/echarts/echarts.min.js"></script><script src="/analytics.js"></script></body>
+</html>

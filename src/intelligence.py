@@ -215,6 +215,9 @@ def upsert_account_identity(sec_uid, nickname):
 
 def save_account_posts(sec_uid, nickname, posts):
     init_account_tables()
+    import metric_history
+    metric_history.init()
+    observed_at=metric_history.timestamp()
     upsert_account_identity(sec_uid,nickname)
     now=store.now_str();fd=store.today_str()
     for p in posts or []:
@@ -229,6 +232,7 @@ def save_account_posts(sec_uid, nickname, posts):
           (aid,sec_uid,p.get("title"),p.get("create_time"),mix_id,p.get("mix_name"),now,now,status))
         store.x("INSERT INTO account_video_snapshots(aweme_id,fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,metric_status,source) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(aweme_id,fetch_date) DO UPDATE SET fetched_at=excluded.fetched_at,play_count=COALESCE(excluded.play_count,account_video_snapshots.play_count),digg_count=COALESCE(excluded.digg_count,account_video_snapshots.digg_count),comment_count=COALESCE(excluded.comment_count,account_video_snapshots.comment_count),share_count=COALESCE(excluded.share_count,account_video_snapshots.share_count),collect_count=COALESCE(excluded.collect_count,account_video_snapshots.collect_count),metric_status=excluded.metric_status,source=excluded.source",
           (aid,fd,now,public_play,p.get("digg_count"),p.get("comment_count"),p.get("share_count"),p.get("collect_count"),status,"author_post"))
+        metric_history.record({**p,"aweme_id":aid,"play_count":public_play},source="author_post",observed_at=observed_at)
     store.x("UPDATE tracked_accounts SET nickname=COALESCE(NULLIF(?,''),nickname),last_scan_at=?,last_error=NULL WHERE sec_uid=?",(nickname or "",now,sec_uid))
     return len(posts or [])
 
@@ -267,18 +271,9 @@ def discovered_videos():
 
 def video_history(aweme_id):
     init_account_tables()
-    aid=str(aweme_id or "").strip()
-    if not aid: return []
-    mix=store.q("SELECT fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,'public_mix_metric' metric_status FROM video_snapshots WHERE aweme_id=? ORDER BY fetch_date",(aid,))
-    account=store.q("SELECT fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,metric_status FROM account_video_snapshots WHERE aweme_id=? ORDER BY fetch_date",(aid,))
-    by={x["fetch_date"]:x for x in account}
-    for x in mix: by[x["fetch_date"]]=x
-    rows = [by[k] for k in sorted(by)]
-    if store.q("SELECT name FROM sqlite_master WHERE type='table' AND name='external_video_observations'"):
-        rows += store.q("SELECT fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,source metric_status FROM external_video_observations WHERE aweme_id=?", (aid,))
-    if store.q("SELECT name FROM sqlite_master WHERE type='table' AND name='playback_measurements'"):
-        rows += store.q("SELECT fetch_date,fetched_at,play_count,digg_count,comment_count,share_count,collect_count,source metric_status,scope FROM playback_measurements WHERE aweme_id=?", (aid,))
-    return sorted(rows, key=lambda r: (r['fetch_date'], r.get('fetched_at') or ''))
+    import metric_history
+    return metric_history.video(str(aweme_id or '').strip())
+
 
 def account_mix_needs_scan(sec_uid, mix_id, latest_create_time):
     init_account_tables()

@@ -622,7 +622,7 @@ def work(aid):
     if not rows:return None
     v=json.loads(rows[0]['value'])
     v.update(create_time=int(datetime.fromisoformat(v['published_at']).timestamp()) if v.get('published_at') else None,
-             play_source='discovery',play_date=v['fetched_at'][:10],topic='',monitored=False)
+             play_source='discovery',play_date=v['fetched_at'][:10],metrics_updated_at=v['fetched_at'],topic='',monitored=False)
     return v
 
 

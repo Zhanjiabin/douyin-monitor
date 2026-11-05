@@ -449,7 +449,7 @@ def next_cursor(body, parameter, current):
     return None
 
 
-def import_response(op, body, params, job_id=""):
+def import_response(op, body, params, job_id="", event_key=""):
     kind = import_kind(op)
     if kind == "播放统计":
         mode = STAT_PATHS[op["path"]]
@@ -457,13 +457,13 @@ def import_response(op, body, params, job_id=""):
         rows = playback.parse(body, mode, expected)
         known = {r["aweme_id"] for r in store.q("SELECT aweme_id FROM tracked_account_videos")}
         tracked = [row for row in rows if row["aweme_id"] in known]
-        playback.persist(tracked)
+        playback.persist(tracked,event_key=event_key)
         return {"imported": len(tracked), "playback": sum(r["play_count"] is not None for r in tracked)}
     if kind == "作品":
         import douk
         # Explicit App V3 adapter; other platforms never enter the Douyin library.
         rows = [row for row in records(body) if row.get("aweme_id") and ("desc" in row or "video" in row or "author" in row)]
-        return douk.import_rows(rows, source="tikhub_app_v3")
+        return douk.import_rows(rows, source="tikhub_app_v3",event_key=event_key)
     if kind == "评论":
         import corpus
         corpus.init()
@@ -657,7 +657,7 @@ def execute(request, progress=lambda _: None, cancelled=lambda: False):
                 finish_statistics = request.get("_statistics_queue_child") is True and op["path"] == APP + "fetch_video_statistics"
                 if request.get("import_results") is True and (not cancelled() or finish_statistics) and not receipt.get("redirect_url"):
                     try:
-                        counts = import_response(op, redact(body, request), params, request.get("job_id", ""))
+                        counts = import_response(op, redact(body, request), params, request.get("job_id", ""),event_key=f"tikhub-request:{rid}")
                         for key, value in counts.items():
                             imported[key] = imported.get(key, 0) + value
                         receipt["imported"] = counts

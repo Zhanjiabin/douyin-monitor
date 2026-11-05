@@ -96,6 +96,8 @@ def dashboard(days=30, role="all", account="", topic="", query="", include_archi
     for row in observations():
         if row["fetch_date"] <= end:
             histories[row["aweme_id"]].append(row)
+    import metric_history
+    update_times=metric_history.latest()
     videos = []
     selected = {}
     for aid, history in histories.items():
@@ -153,7 +155,7 @@ def dashboard(days=30, role="all", account="", topic="", query="", include_archi
             play_status, play_reason = "failed", "合集播放补采失败，可重新采集。" + (check.get("message") or "")
         else:
             play_status, play_reason = "pending", "已识别合集，该作品尚无有效播放快照；需补查合集分段或接口是否提供该指标。"
-        videos.append({**latest, "avatar_path":identity.get("avatar_path"), "play_count": playback.get("play_count"), "play_date": play_date,
+        videos.append({**latest,**update_times.get(aid,{}), "play_updated_at":playback.get("fetched_at"), "avatar_path":identity.get("avatar_path"), "play_count": playback.get("play_count"), "play_date": play_date,
             "play_status":play_status, "play_reason":play_reason, "play_checked_at":check.get("checked_at"),
             "play_source": playback.get("play_source"), "role": group, "topic": category,
             "play_scope": playback.get("play_scope"),

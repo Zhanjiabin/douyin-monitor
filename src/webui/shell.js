@@ -15,6 +15,7 @@
   const nav = [
     ['/home','工作台','grid'],
     ['/screen#overview','作品监控','grid','overview'],
+    ['/analytics','数据统计','chart'],
     ['/discover','发现','chart'],
     ['/research','内容研究','text'], ['/collect','采集中心','task'], ['/assets','素材库','media']
   ];
