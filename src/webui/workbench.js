@@ -108,16 +108,33 @@
     $('#jobActions').innerHTML=`${['queued','running'].includes(job.status)?`<button class="btn" data-cancel-job="${job.id}">取消任务</button>`:''}<a class="text-link" href="/api/douk/export?id=${job.id}&format=xlsx">Excel</a><a class="text-link" href="/api/douk/export?id=${job.id}&format=json">JSON</a>`;
     if(!$('#jobRecordRows'))$('#jobOutput').innerHTML='<p id="jobRecordMessage"></p><div id="jobRefreshProgress" hidden></div><div class="table-scroll" id="jobRecordTable"><table><thead id="jobRecordHead"></thead><tbody id="jobRecordRows"></tbody></table></div><div id="jobRecordsPagination"></div><p class="error-text" id="jobRecordErrors"></p><div class="wb-empty" id="jobRecordEmpty"></div>';
     $('#jobRecordMessage').textContent=(labels[job.status]||job.status)+(job.message?' · '+job.message:'')+(r.attempted?' · '+r.attempted+' 次请求':'');
-    const identities=new Map((state.data?.videos||[]).map(v=>[v.aweme_id,v])),showComments=rows.some(x=>x.comment_count!=null||x.statistics?.comment_count!=null);
-    G.jobProgress($('#jobRefreshProgress'),job,{showItems:false});
-    $('#jobRecordHead').innerHTML=`<tr><th>作品 / 内容</th><th>播放</th><th>点赞</th>${showComments?'<th>评论</th>':''}</tr>`;
+    const identities=new Map((state.data?.videos||[]).map(v=>[v.aweme_id,v]));
+    Guanchao.jobProgress($('#jobRefreshProgress'),job,{showItems:false});
+    if(!['queued','running'].includes(job.status)&&!(job.progress?.running>0))$('#jobRefreshProgress').hidden=true;
+    const columns=[
+      {label:'排名',value:x=>x.rank??x.position},
+      {label:'热度',value:x=>x.heat??x.hot_value??x.hot_score},
+      {label:'播放',value:x=>x.play_count??x.statistics?.play_count},
+      {label:'榜单播放',value:x=>x.board_play_count},
+      {label:'点赞',value:x=>x.digg_count??x.statistics?.digg_count},
+      {label:'评论',value:x=>x.comment_count??x.statistics?.comment_count},
+      {label:'收藏',value:x=>x.collect_count??x.statistics?.collect_count},
+      {label:'分享',value:x=>x.share_count??x.statistics?.share_count}
+    ].filter(c=>rows.some(x=>c.value(x)!=null));
+    $('#jobRecordHead').innerHTML=`<tr><th>作品 / 内容</th>${columns.map(c=>`<th class="sort-number">${c.label}</th>`).join('')}</tr>`;
     const visible=pageItems('jobRecordsPagination',rows,'records',renderJobOutput,'条记录');
-    $('#jobRecordRows').innerHTML=visible.map(x=>{const aid=String(x.aweme_id||x.content_id||''),known=identities.get(aid),label=x.text||x.content||x.title||x.desc||known?.title||aid||x.name||'记录';return `<tr><td>${known?`<button type="button" class="text-link task-work-title" data-open-work="${aid}">${esc(label)}</button><small class="task-work-account">${esc(known.account_name)}</small>`:esc(label)}</td><td>${fmt(x.play_count??x.statistics?.play_count)}</td><td>${fmt(x.digg_count??x.statistics?.digg_count)}</td>${showComments?`<td>${fmt(x.comment_count??x.statistics?.comment_count)}</td>`:''}</tr>`;}).join('');
+    $('#jobRecordRows').innerHTML=visible.map(x=>{const aid=String(x.aweme_id||x.content_id||''),known=identities.get(aid),label=x.text||x.content||x.title||x.word||x.desc||known?.title||aid||x.name||'记录';return `<tr><td>${known?`<button type="button" class="text-link task-work-title" data-open-work="${esc(aid)}">${esc(label)}</button><small class="task-work-account">${esc(known.account_name)}</small>`:esc(label)}</td>${columns.map(c=>`<td class="sort-number">${Guanchao.metricNumber(c.value(x))}</td>`).join('')}</tr>`;}).join('');
     $('#jobRecordTable').hidden=!rows.length;
+    $('#jobRecordsPagination').hidden=!rows.length;
     $('#jobRecordErrors').textContent=(r.errors||[]).map(e=>e.error).join('；');
     $('#jobRecordEmpty').hidden=!!rows.length||!!r.errors?.length;
     $('#jobRecordEmpty').textContent=['running','queued'].includes(job.status)?'任务正在执行，结果将自动更新':'没有可展示的记录，可导出完整响应查看。';
   }
+  function collectPane(pane){
+    document.body.dataset.collectPane=pane;
+    $$('[data-collect-pane]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.collectPane===pane)));
+  }
+  $$('[data-collect-pane]').forEach(button=>button.onclick=()=>collectPane(button.dataset.collectPane));
   function fileType(name) { return /\.(mp4|mov|mkv|webm)$/i.test(name)?'video':/\.(mp3|wav|m4a)$/i.test(name)?'audio':/\.(jpg|png|jpeg|webp|gif)$/i.test(name)?'image':'text'; }
   function renderAssets() {
     const f=state.assetFilter,rows=state.assets.filter(x=>(f.type==='all'||fileType(x.name)===f.type)&&x.name.toLowerCase().includes(f.q)&&(!f.source||x.source===f.source));
@@ -179,7 +196,7 @@
   $('#collectAction').onchange=toggleAction; $('#collectForm').addEventListener('input',e=>{if(e.target.id!=='confirmCollect')invalidate();});
   $('#confirmCollect').onchange=()=>{$('#startCollect').disabled=!state.plan?.allowed||!$('#confirmCollect').checked||state.submitting;};
   $('#previewCollect').onclick=async()=>{try{invalidate();const values=collectValues(),signature=JSON.stringify(values);const plan=await api('/api/workbench/plan',values);if(signature!==JSON.stringify(collectValues()))return;state.plan={...plan,signature};$('#collectPreview').innerHTML=`<b>最多 ${plan.calls} 次请求</b><br>${plan.units} ${values.action==='account'?'个账号':'条作品'}${plan.paid?' · 使用 TikHub 额度':' · 本机解析'}${plan.reason?'<br>'+esc(plan.reason):''}`;}catch(e){$('#collectError').textContent=e.message;}};
-  $('#collectForm').onsubmit=async e=>{e.preventDefault();if(!state.plan?.allowed||!$('#confirmCollect').checked||state.submitting)return;try{const values=collectValues();if(JSON.stringify(values)!==state.plan.signature)throw Error('参数已变化，请重新预览');state.submitting=true;$('#startCollect').disabled=true;const j=await api('/api/workbench/submit',{...values,fingerprint:state.plan.fingerprint,confirmed:true});invalidate();await load();await openJob(j.id);toast('任务已加入队列');}catch(error){$('#collectError').textContent=error.message;}finally{state.submitting=false;}};
+  $('#collectForm').onsubmit=async e=>{e.preventDefault();if(!state.plan?.allowed||!$('#confirmCollect').checked||state.submitting)return;try{const values=collectValues();if(JSON.stringify(values)!==state.plan.signature)throw Error('参数已变化，请重新预览');state.submitting=true;$('#startCollect').disabled=true;const j=await api('/api/workbench/submit',{...values,fingerprint:state.plan.fingerprint,confirmed:true});invalidate();await load();await openJob(j.id);collectPane('tasks');toast('任务已加入队列');}catch(error){$('#collectError').textContent=error.message;}finally{state.submitting=false;}};
   $('#connectionForm').addEventListener('input',()=>connectionDirty=true);
   $('#connectionForm').onsubmit=async e=>{e.preventDefault();if(connectionSaving)return;const button=e.submitter;connectionSaving=true;button.disabled=true;try{await api('/api/playback/settings',{api_key:$('#connectionKey').value,max_calls_per_job:$('#connectionMax').value,daily_call_limit:$('#connectionDaily').value,allow_batch_statistics:$('#allowBatchStats').checked});$('#connectionKey').value='';connectionDirty=false;$('#connectionError').textContent='';await load();toast('连接已保存');window.dispatchEvent(new Event('playback-settings-changed'));}catch(error){$('#connectionError').textContent=error.message;}finally{connectionSaving=false;button.disabled=false;}};
   $('#reloadPage').onclick=async()=>{try{servicesLoaded=false;await load();if(view==='settings')dispatchEvent(new Event('settings-reload-requested'));}catch(e){toast(e.message);}};
@@ -187,6 +204,7 @@
   const titles={home:'工作台',research:'内容研究',collect:'采集中心',assets:'素材库',settings:'设置'};
   document.body.dataset.page=view; document.title='暖暖影视 · '+titles[view]; $('#workbenchTitle').textContent=titles[view]; $$('[data-view]').forEach(s=>s.hidden=s.dataset.view!==view);
   if(args.get('action')&&[...$('#collectAction').options].some(o=>o.value===args.get('action')))$('#collectAction').value=args.get('action');
+  collectPane(!args.get('job')&&(args.get('action')||args.get('video')||args.get('account'))?'compose':'tasks');
   if(args.get('video'))$('#collectInput').value=args.get('video'); if(args.get('account'))$('#collectAccount').dataset.initial=args.get('account'); toggleAction();
   load().then(()=>{if(args.get('account'))$('#collectAccount').value=args.get('account');if(view==='collect'&&args.get('job'))openJob(args.get('job')).catch(e=>toast(e.message));}).catch(e=>toast(e.message));
   if(view==='collect')setInterval(async()=>{if(document.hidden)return;try{state.jobs=(await api('/api/workbench/jobs')).items;renderJobs();if(state.selected&&['running','queued','cancelled'].includes(state.job?.status))await openJob(state.selected);}catch(e){$('#pageStatus').textContent=e.message;}},4000);
