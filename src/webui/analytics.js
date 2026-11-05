@@ -17,7 +17,15 @@
   function tip(title,lines){return `<div class="analytics-tooltip"><b>${esc(title)}</b>${lines.map(s=>'<div>'+s+'</div>').join('')}</div>`;}
   function chart(host,options){
     const c=echarts.init(host,null,{renderer:'canvas'});
-    c.setOption({animation:false,color:['#2f82a8','#37a891','#e5b663','#8e86bf'],textStyle:{fontFamily:'Microsoft YaHei UI, sans-serif',fontSize:11},aria:{enabled:true},...options});charts.push(c);return c;
+    const dark=AppTheme.get()==='dark';
+    // ECharts renders to canvas, so CSS alone cannot recolor axes and tooltips.
+    function themed(value){
+      if(Array.isArray(value))return value.map(themed);
+      if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,themed(v)]));
+      if(!dark||typeof value!=='string')return value;
+      return ({'#fff':'#17212d','#fafcfd':'#1c2a38','#edf2f6':'#304254','#edf1f5':'#26384a','#dce6ed':'#425c75','#cbdbe5':'#425c75','#94a6b3':'#91a5b9','#8197a7':'#91a5b9','#8197a6':'#91a5b9','#6f899b':'#becfdf','#6e899b':'#becfdf','#52768e':'#becfdf','#8a9ba9':'#91a5b9','#e6f1f6':'#24394b','#83b8ce':'#487f9d','#287b9e':'#60abc9'})[value]||value;
+    }
+    c.setOption({animation:false,color:dark?['#74b7df','#6ccbad','#e5b663','#b2a0e2']:['#2f82a8','#37a891','#e5b663','#8e86bf'],textStyle:{fontFamily:'Microsoft YaHei UI, sans-serif',fontSize:11,color:dark?'#becfdf':'#486175'},aria:{enabled:true},...themed(options)});charts.push(c);return c;
   }
   const axis={axisLine:{show:false},axisTick:{show:false},axisLabel:{color:'#94a6b3',fontSize:10},splitLine:{lineStyle:{color:'#edf2f6'}}};
   const yaxis={...axis,type:'value',axisLabel:{...axis.axisLabel,formatter:fmt}};
@@ -102,10 +110,11 @@
   form.onreset=e=>{e.preventDefault();Object.assign(sorts.trend,{key:'date',direction:'desc'});Object.assign(sorts.works,{key:metric,direction:'desc'});Object.assign(sorts.publication,{key:'weekday',direction:'asc'});form.elements.days.value='30';form.elements.keyword.value='';const account=data?.accounts.find(a=>a.enabled&&a.role==='own')||data?.accounts.find(a=>a.enabled)||data?.accounts[0];form.elements.account.value=account?.sec_uid||'';form.requestSubmit();};
   form.oninput=()=>{$('#analyticsFeedback').textContent='条件已修改，点击搜索应用';};
   $('#reloadAnalytics').onclick=()=>load(applied);window.addEventListener('gc-data-updated',()=>load(applied));
+  window.addEventListener('nn-theme-change',()=>{if(data)render();});
   document.querySelectorAll('[data-dimension]').forEach(b=>b.onclick=()=>{dimension=b.dataset.dimension;page=0;render();});
   $('.analytics-tabs').onkeydown=e=>{const tabs=[...document.querySelectorAll('[data-dimension]')],i=tabs.indexOf(document.activeElement);if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)||i<0)return;e.preventDefault();const n=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[n].focus();tabs[n].click();};
   document.querySelectorAll('[data-display]').forEach(b=>b.onclick=()=>{display=b.dataset.display;page=0;render();});
   $('#analyticsMetric').onchange=e=>{metric=e.target.value;Object.assign(sorts.works,{key:metric,direction:'desc'});page=0;render();};
-  $('#analyticsExport').onclick=()=>{if(!data?.account)return;const t=tableData(),lines=[t.headers,...t.rows.map(t.csv)],csv=lines.map(row=>row.map(v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';}).join(',')).join('\r\n'),url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='观潮-'+(data.account.nickname||'账号')+'-'+({trend:'账号趋势',works:'作品表现',publication:'发布分析'})[dimension]+'-'+data.end+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);};
+  $('#analyticsExport').onclick=()=>{if(!data?.account)return;const t=tableData(),lines=[t.headers,...t.rows.map(t.csv)],csv=lines.map(row=>row.map(v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';}).join(',')).join('\r\n'),url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='暖暖影视-'+(data.account.nickname||'账号')+'-'+({trend:'账号趋势',works:'作品表现',publication:'发布分析'})[dimension]+'-'+data.end+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);};
   load(applied,true);
 })();

@@ -168,7 +168,7 @@
     const d=document.getElementById('accountDetailDialog'),all=accountWorks();accountPage=Math.min(accountPage,Math.max(0,Math.ceil(all.length/pageCount)-1));
     d.querySelector('.account-works-scroll thead').innerHTML=sortHead(accountColumns,accountSort);
     bindSort(d.querySelector('.account-works-scroll thead'),accountSort,()=>{accountPage=0;accountFilter.sort='header';d.querySelector('[name=sort]').value='header';accountRows();d.querySelector('.account-works-scroll').scrollTop=0;});
-    d.querySelector('[data-account-rows]').innerHTML=all.slice(accountPage*pageCount,(accountPage+1)*pageCount).map(v=>`<tr><td><button class="modal-work" data-open-work="${v.aweme_id}">${picture(v.cover_path)}<span><strong>${esc(v.title||v.aweme_id)}</strong><small>${esc(v.topic||'未识别')}</small></span></button></td><td class="date-cell">${esc(date(v.create_time)).replace(' ','<br>')}</td><td class="date-cell">${esc(timestamp(v.metrics_updated_at)).replace(' ','<br>')}</td>${metricColumns.map(c=>`<td class="sort-number">${metricNumber(v[c.key])}</td>`).join('')}<td><div class="row-work-actions"><button class="btn row-update" data-inline-action="playback" data-aid="${v.aweme_id}">更新数据</button><div><button class="text-link" data-open-work="${v.aweme_id}">详情</button><button class="text-link" data-inline-action="download" data-aid="${v.aweme_id}">下载</button></div></div></td></tr>`).join('')||'<tr><td colspan="9">没有符合条件的作品</td></tr>';
+    d.querySelector('[data-account-rows]').innerHTML=all.slice(accountPage*pageCount,(accountPage+1)*pageCount).map(v=>`<tr><td><button class="modal-work" data-open-work="${v.aweme_id}">${picture(v.cover_path)}<span><strong>${esc(v.title||v.aweme_id)}</strong><small>${esc(v.topic||'未识别')}</small>${mobileSummary(v)}</span></button></td><td class="date-cell">${esc(date(v.create_time)).replace(' ','<br>')}</td><td class="date-cell">${esc(timestamp(v.metrics_updated_at)).replace(' ','<br>')}</td>${metricColumns.map(c=>`<td class="sort-number">${metricNumber(v[c.key])}</td>`).join('')}<td><div class="row-work-actions"><button class="btn row-update" data-inline-action="playback" data-aid="${v.aweme_id}">更新数据</button><div><button class="text-link" data-open-work="${v.aweme_id}">详情</button><button class="text-link" data-inline-action="download" data-aid="${v.aweme_id}">下载</button></div></div></td></tr>`).join('')||'<tr><td colspan="9">没有符合条件的作品</td></tr>';
     pagination(d.querySelector('[data-account-pagination]'),{total:all.length,page:accountPage,pageSize:pageCount,unit:'条作品',onChange:(page,size)=>{accountPage=page;pageCount=size;accountRows();d.querySelector('.account-works-scroll').scrollTop=0;}});
   }
   async function openAccount(id,keep=false){
@@ -185,6 +185,10 @@
       initFilters(d);const form=d.querySelector('[data-account-form]');if(draft)Object.entries(draft).forEach(([key,value])=>{form.elements[key].value=value;});form.onsubmit=e=>{e.preventDefault();accountFilter=Object.fromEntries(new FormData(form));accountFilter.q=accountFilter.q.trim().toLowerCase();if(accountFilter.sort!=='header')Object.assign(accountSort,{key:accountFilter.sort==='play'?'play_count':'create_time',direction:'desc'});accountPage=0;accountRows();};form.onreset=e=>{e.preventDefault();form.elements.q.value='';form.elements.topic.value='';form.elements.period.value='';form.elements.sort.value='new';form.requestSubmit();};
       accountRows();d.querySelector('.account-works-scroll').scrollTop=previousScroll;
     }catch(e){if(version===accountVersion)body.innerHTML=busy(e.message);}
+  }
+  function mobileSummary(v){
+    const updated=timestamp(v.metrics_updated_at);
+    return `<span class="mobile-work-data"><b>${fmt(v.play_count)} 播放</b><span>${fmt(v.digg_count)} 赞</span></span><span class="mobile-work-updated">更新 ${esc(updated==='—'?updated:updated.slice(5,16))}</span>`;
   }
   function historyTable(host,items){
     const state={key:'observed_at',direction:'desc'},records=[...items].sort((a,b)=>(b.id||0)-(a.id||0));
@@ -259,5 +263,5 @@
     if(document.getElementById('accountDetailDialog')?.open&&activeAccount)openAccount(activeAccount,true);
   });
   initFilters();
-  window.Guanchao={esc,fmt,metricNumber,timeValue,sortRows,sortHead,bindSort,date,timestamp,updateTime,historyTable,picture,api,download,roles,pagination,jobProgress,openAction,openAccount,openWork,openAccountEditor,openDialog};
+  window.Guanchao={esc,fmt,mobileSummary,metricNumber,timeValue,sortRows,sortHead,bindSort,date,timestamp,updateTime,historyTable,picture,api,download,roles,pagination,jobProgress,openAction,openAccount,openWork,openAccountEditor,openDialog};
 })();

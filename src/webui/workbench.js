@@ -185,7 +185,7 @@
   $('#reloadPage').onclick=async()=>{try{servicesLoaded=false;await load();if(view==='settings')dispatchEvent(new Event('settings-reload-requested'));}catch(e){toast(e.message);}};
   window.addEventListener('gc-data-updated',()=>load().catch(e=>toast(e.message)));
   const titles={home:'工作台',research:'内容研究',collect:'采集中心',assets:'素材库',settings:'设置'};
-  document.body.dataset.page=view; document.title='观潮 · '+titles[view]; $('#workbenchTitle').textContent=titles[view]; $$('[data-view]').forEach(s=>s.hidden=s.dataset.view!==view);
+  document.body.dataset.page=view; document.title='暖暖影视 · '+titles[view]; $('#workbenchTitle').textContent=titles[view]; $$('[data-view]').forEach(s=>s.hidden=s.dataset.view!==view);
   if(args.get('action')&&[...$('#collectAction').options].some(o=>o.value===args.get('action')))$('#collectAction').value=args.get('action');
   if(args.get('video'))$('#collectInput').value=args.get('video'); if(args.get('account'))$('#collectAccount').dataset.initial=args.get('account'); toggleAction();
   load().then(()=>{if(args.get('account'))$('#collectAccount').value=args.get('account');if(view==='collect'&&args.get('job'))openJob(args.get('job')).catch(e=>toast(e.message));}).catch(e=>toast(e.message));

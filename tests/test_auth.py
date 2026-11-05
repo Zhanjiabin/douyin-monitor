@@ -50,6 +50,11 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(page.status_code,200)
         self.assertIn('id="loginForm"',page.text)
         self.assertNotIn('WWW-Authenticate',page.headers)
+        self.assertIn('暖暖影视',page.text)
+        for path in ['/theme.js', '/theme.css']:
+            response=self.client.get(self.base+path,allow_redirects=False)
+            self.assertEqual(response.status_code,200,path)
+            self.assertEqual(response.headers['Cache-Control'],'no-store')
         for path in ['/home','/screen','/assets','/manage','/media/missing.jpg','/product.js','/discover','/discovery.js','/audience.js','/discovery.css']:
             response=self.client.get(self.base+path,allow_redirects=False)
             self.assertEqual(response.status_code,302,path)

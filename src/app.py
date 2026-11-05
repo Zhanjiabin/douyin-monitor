@@ -210,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/auth/session":
                 username = auth.current_user(self.headers) if auth_on else None
                 return self._json({"enabled": auth_on, "authenticated": bool(username), "username": username})
-            if path in {"/login.css", "/login.js"}:
+            if path in {"/login.css", "/login.js", "/theme.css", "/theme.js"}:
                 return self._file(path[1:])
             if path == "/login":
                 target = auth.safe_next(parse_qs(urlparse(self.path).query).get("next", ["/home"])[0])

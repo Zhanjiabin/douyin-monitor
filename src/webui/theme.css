@@ -1,0 +1,230 @@
+/* Shared appearance. Component fallbacks retain their light palette. */
+:root {
+  color-scheme: light;
+  --app-bg: #f4f7fa; --app-surface: #fff; --app-sidebar: #fbfcfe;
+  --app-text: #203448; --app-secondary: #5c7286; --app-muted: #748598;
+  --app-border: #dfe7ee; --app-hover: #edf3f7; --app-selected: #e4eff6;
+  --app-accent: #266c98; --app-focus: #77aeca;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #0f1722; --app-surface: #17212d; --app-sidebar: #131c27;
+  --app-text: #e3edf7; --app-secondary: #becfdf; --app-muted: #91a5b9;
+  --app-border: #304254; --app-hover: #1e2f40; --app-selected: #213d52;
+  --app-accent: #82c6ee; --app-focus: #73b7df;
+  --theme-canvas: var(--app-bg); --theme-surface: var(--app-surface);
+  --theme-surface-2: #1c2a38; --theme-surface-3: #26384a;
+  --theme-text: var(--app-text); --theme-text-secondary: var(--app-secondary);
+  --theme-muted: var(--app-muted); --theme-faint: #8499ae;
+  --theme-border: var(--app-border); --theme-border-strong: #425c75;
+  --theme-accent: var(--app-accent); --theme-accent-fill: #276f9a;
+  --theme-selected: var(--app-selected);
+  --theme-success: #79d6b8; --theme-success-bg: #19372f;
+  --theme-warning: #e6bf7b; --theme-warning-bg: #3c3020;
+  --theme-danger: #f5a59d; --theme-danger-bg: #3b2429;
+  --theme-purple: #beb1ee; --theme-purple-bg: #302a48;
+}
+html, body { background: var(--app-bg); color: var(--app-text); }
+body { -webkit-tap-highlight-color: transparent; }
+.gc-sidebar { background: var(--app-sidebar); }
+.gc-brand { color: var(--app-text); font-size: 21px; letter-spacing: 0; gap: 9px; white-space: nowrap; }
+.gc-mark i, .brand-mark i { background: #3287b0; }
+.gc-mark i:nth-child(2), .brand-mark i:nth-child(2) { background: #65abc7; }
+.gc-mark i:nth-child(3), .brand-mark i:nth-child(3) { background: #a0cedd; }
+.topbar, .main > header { background: var(--app-surface); color: var(--app-text); }
+.topbar-title { display: flex !important; min-width: 0; flex-shrink: 0; }
+.topbar-title b { white-space: nowrap; }
+.gc-topbar-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
+.gc-account-tools { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.theme-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 9px; border: 1px solid var(--app-border); border-radius: 6px; background: var(--app-surface); color: var(--app-secondary); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.theme-toggle:hover { background: var(--app-hover); color: var(--app-accent); }
+.theme-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.gc-user-session { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0 0 0 12px; border: 0; border-left: 1px solid var(--app-border); font-size: 12px; }
+.gc-user-name { display: inline-flex; align-items: center; gap: 6px; color: var(--app-secondary); max-width: 130px; min-width: 0; }
+.gc-user-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gc-user-name svg, .gc-logout svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.gc-logout { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 32px; padding: 0 4px; border: 0; background: none; color: var(--app-secondary); font: inherit; cursor: pointer; white-space: nowrap; }
+.gc-logout:hover { color: var(--app-accent); }
+.gc-logout:disabled { opacity: .5; }
+.theme-toggle:focus-visible, .gc-logout:focus-visible { outline: 2px solid var(--app-focus); outline-offset: 2px; }
+.login-appearance { position: fixed; top: max(20px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); }
+html[data-theme="dark"] :is(dialog, input, select, textarea) { color-scheme: dark; }
+html[data-theme="dark"] dialog { background: var(--app-surface); color: var(--app-text); }
+html[data-theme="dark"] body { background: var(--app-bg); }
+html[data-theme="dark"] :is(.gc-nav a.is-active, .gc-settings.is-active) { background: var(--app-selected); color: var(--app-accent); }
+html[data-theme="dark"] .gc-menu { background: var(--app-surface); }
+html[data-theme="dark"] .gc-menu span { background: var(--app-secondary); }
+html[data-theme="dark"] :is(.table-scroll, .table-wrap, .hub-table-scroll, .analytics-chart-grid, .account-works-scroll) { scrollbar-color: #42566c transparent; }
+html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #42566c; }
+html[data-theme="dark"] :is(.trend-axis, .trend-label, .trend-point-label) { fill: var(--app-muted); }
+html[data-theme="dark"] :is(.trend-grid, .chart-grid line) { stroke: var(--app-border); }
+
+/* Keep the frame pinned; scroll the active content pane, including on touch. */
+.gc-nav, .table-scroll, .table-wrap, .product-dialog-body { -webkit-overflow-scrolling: touch; }
+.shell > main, .main > main { min-width: 0; }
+body[data-app] { height: 100dvh; overflow: hidden; }
+body[data-app] > :is(.shell, .main) { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.shell > :is(.workspace-main, .studio-main, .api-main, .discovery-main, .wb-main), .main > main { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.account-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.account-card-footer button { width: auto; margin-left: auto; }
+.mobile-work-data, .mobile-work-updated { display: none; }
+.gc-topbar-actions > :is(.top-actions, .head-actions, .hub-header-actions) { min-width: 0; }
+@media (max-width: 1100px) {
+  .gc-topbar-actions { gap: 9px; }
+  .gc-account-tools { gap: 8px; }
+  .gc-user-session { gap: 8px; padding-left: 9px; }
+  .gc-topbar-actions :is(#workspaceStatus, #engineState, #connectionState, .analytics-local, #hubLastUpdated) { display: none; }
+}
+@media (max-width: 800px) {
+  body[data-app] .topbar, .main > header { min-height: 54px; height: auto; padding-right: 12px; flex-wrap: wrap; gap: 0 10px; flex-shrink: 0; }
+  .topbar-title, .topbar-title b { font-size: 13px; }
+  .topbar-title > span { display: none; }
+  .gc-brand { font-size: 21px; }
+  .gc-topbar-actions { display: contents; }
+  .gc-account-tools { margin-left: auto; min-height: 54px; gap: 8px; }
+  .gc-user-session { gap: 5px; padding-left: 8px; font-size: 11px; }
+  .gc-user-name { max-width: 100px; }
+  .gc-user-name svg { display: none; }
+  .gc-logout { width: 32px; padding: 0; }
+  .gc-logout > span { display: none; }
+  .gc-logout svg { width: 17px; height: 17px; }
+  .theme-toggle { height: 32px; padding: 0 7px; font-size: 11px; }
+  .gc-topbar-actions > :is(.top-actions, .head-actions, .hub-header-actions) { order: 3; flex: 1 0 100%; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; padding: 0 0 8px; }
+  .gc-topbar-actions :is(#pageStatus, #workspaceStatus, #runStatus, #dataDate, #discoveryUpdated, .analytics-local) { display: none; }
+  .gc-topbar-actions .btn { min-height: 32px; height: auto; padding: 8px 10px; }
+  .gc-topbar-actions > .top-actions:has(.gc-page-refresh) { order: 0; flex: 0 0 auto; padding: 0; margin-left: auto; }
+  .gc-topbar-actions:has(.gc-page-refresh) .gc-account-tools { margin-left: 0; }
+  .gc-topbar-actions .gc-page-refresh { width: 30px; min-width: 30px; min-height: 32px; padding: 0; font-size: 0; border-color: transparent; background: transparent; color: var(--app-secondary); }
+  .gc-page-refresh::before { content: '↻'; font-size: 22px; line-height: 1; }
+  .gc-sidebar { padding-bottom: env(safe-area-inset-bottom) !important; }
+  .gc-nav > a { height: 44px; min-height: 44px; }
+  .gc-menu { width: 32px; height: 32px; top: 11px; border-radius: 4px; }
+  .gc-menu span { width: 18px; }
+  :is(.wb-main, .analytics-main, .hub-main, .discovery-main, .workspace-main, .studio-main, .api-main) { width: 100%; max-width: 100%; min-width: 0; }
+  .filter-panel.filter-bar { margin-bottom: 10px; }
+  .filter-layout, #accountDetailDialog .modal-filter-layout { align-items: stretch; }
+  #accountDetailDialog .modal-filter-layout > .filter-results { align-self: stretch; width: 100%; max-width: 100%; }
+  #accountDetailDialog .account-works-scroll { width: 100%; max-width: 100%; }
+  #accountDetailDialog .account-works-scroll th:first-child { width: 300px; }
+  .screen-results table .work-col { width: 300px; min-width: 300px; }
+  .mobile-work-data { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 5px; font-size: 11px; line-height: 1.5; color: var(--app-secondary); }
+  .mobile-work-data b { color: var(--app-accent); font-weight: 600; }
+  .mobile-work-updated { display: block; font-size: 10px; color: var(--app-muted); line-height: 1.6; margin-top: 3px; }
+  #accountDetailDialog .modal-work .mobile-work-data { gap: 10px; margin-top: 4px; font-size: 10px; }
+  #accountDetailDialog .modal-work .mobile-work-updated { margin-top: 2px; font-size: 9px; }
+  :is(.filter-panel.filter-bar, .analytics-filters, .hub-filters, .discovery-filters) :is(input, select, .btn) { min-height: 36px; }
+  .pagination { flex-wrap: wrap; gap: 6px; }
+  .pagination-controls { min-width: 0; max-width: 100%; flex-wrap: wrap; gap: 6px; width: 100%; justify-content: flex-start; }
+  .pagination-controls :is(input, select, .btn) { min-height: 32px; }
+  .pagination-controls > :is([data-pager-prev], [data-pager-next]) { font-size: 0 !important; min-width: 28px; width: 28px; padding: 0; }
+  [data-pager-prev]::before { content: '‹'; font-size: 19px; }
+  [data-pager-next]::before { content: '›'; font-size: 19px; }
+  .pager-jump-label > span { display: none; }
+  .pagination select { max-width: 100px; }
+  .product-dialog { max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
+  .product-dialog-head { gap: 10px; min-width: 0; }
+  .product-dialog-head h2 { min-width: 0; overflow-wrap: anywhere; }
+  .product-dialog-body { min-width: 0; overscroll-behavior: contain; }
+  .product-dialog .research-tabs { overflow-x: auto; gap: 18px; }
+  .product-dialog .research-tabs button { white-space: nowrap; min-height: 40px; }
+  :is(.product-dialog, .modal) .table-scroll { max-width: 100%; overflow: auto; }
+  .compact-account-actions { flex-wrap: wrap; justify-content: flex-end; }
+  #accountDetailDialog .compact-account-actions .btn { min-height: 30px; }
+  .product-dialog .product-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 12px; }
+  .product-dialog .product-metrics > div:nth-child(3) { border-right: 0; }
+  .product-dialog .product-metrics > div:nth-child(4) { padding-left: 0; }
+  .modal-work-header > div { min-width: 0; }
+  .monitor-accounts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-fields > label { min-width: 0; }
+  .settings-fields input { width: 100%; }
+  .table-scroll, .table-wrap, .hub-table-scroll, .analytics-table-scroll, .account-works-scroll { overscroll-behavior-x: contain; }
+}
+@media (max-width: 600px) {
+  /* Main content stays scrollable without adding an outer page scrollbar. */
+  body[data-app="workbench"] { height: 100dvh; overflow: hidden; }
+  body[data-app="workbench"] > .shell { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  body[data-app="workbench"] .wb-main { flex: 1; min-height: 0; overflow: hidden; padding: 10px; }
+  .wb-main > section:not([hidden]) { height: 100%; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  body[data-page="home"] .wb-main > section { display: flex; flex-direction: column; overflow: hidden; }
+  body[data-page="home"] .filter-layout { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
+  body[data-page="home"] .filter-results { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
+  .account-card-grid { flex: 1; min-height: 0; overflow: auto; align-content: start; grid-template-columns: minmax(0, 1fr); grid-auto-rows: max-content; gap: 12px; padding-bottom: 2px; }
+  #homePagination { flex-shrink: 0; }
+  #homeFilterForm.filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; gap: 8px; flex-shrink: 0; }
+  #homeFilterForm > label:first-of-type { grid-column: 1 / -1; }
+  #homeFilterForm > label:nth-of-type(4) { grid-column: 1 / -1; }
+  #homeFilterForm .filter-buttons { grid-column: 1; grid-row: 4; justify-content: flex-start; }
+  #homeFilterForm .home-add-account { grid-column: 2; grid-row: 4; align-self: center; }
+  .account-card-header { padding: 12px; }
+  .account-latest { gap: 10px; padding: 0 12px 12px; }
+  .account-latest .latest-work > div { height: clamp(128px, 40vw, 190px); }
+  .account-card-footer { padding: 10px 12px; }
+  .research-layout .work-library { max-height: 212px; }
+  .research-layout .work-list { max-height: 125px; }
+  .work-library .pagination { padding: 6px; }
+  .work-header { padding: 12px; }
+  .work-heading h1 { font-size: 13px; }
+  .work-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 12px; }
+  .work-metrics > div:nth-child(3) { border: 0; }
+  .work-metrics > div:nth-child(4) { padding-left: 0; }
+  .research-tabs { overflow-x: auto; gap: 18px; }
+  .research-tabs button { white-space: nowrap; }
+  .video-preview { grid-template-columns: minmax(0, 1fr); }
+  .related-work { gap: 8px; }
+  .related-work b { font-size: 11px; }
+  .collect-layout, .task-column, .research-layout, .research-columns { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+  .form-buttons .btn { min-height: 36px; }
+  .form-body textarea { font-size: 14px; }
+  .job-output .table-scroll { max-width: 100%; }
+  .asset-table { min-width: 680px; }
+  .asset-table :is(th, td):last-child { position: sticky; right: 0; background: var(--app-surface); z-index: 1; }
+  .settings-fields { grid-template-columns: minmax(0, 1fr) !important; }
+  .settings-fields.three-columns { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .monitor-accounts { grid-template-columns: minmax(0, 1fr); max-height: 192px; }
+  .settings-page .monitor-controls, .settings-page .monitor-preview-column, .connection-body { padding: 14px; }
+  .settings-state { overflow-wrap: anywhere; }
+  .settings-page .advanced-grid, .service-grid { grid-template-columns: minmax(0, 1fr); }
+  .analytics-main .analytics-account-links { display: none; }
+  .analytics-main .analytics-account { min-height: 54px; }
+  .analytics-toolbar { min-height: 74px; margin-bottom: 8px; }
+  .analytics-chart { height: 260px; }
+  .analytics-method { max-height: 36px; overflow: auto; }
+  .analytics-chart-card header { flex-wrap: wrap; gap: 5px; }
+  .analytics-chart-card header > span { margin-left: 0; }
+  .analytics-heat-toggle { margin-left: auto; }
+  .hub-toolbar { gap: 6px; margin: 8px 0; }
+  .hub-toolbar > span { display: none; }
+  .hub-tabs { gap: 20px; }
+  .hub-category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hub-detail-top { grid-template-columns: 64px minmax(0, 1fr); }
+  .hub-detail-facts { flex-wrap: wrap; }
+  .hub-toggle-row { align-items: flex-start; }
+  .hub-settings-grid, .hub-report-grid { grid-template-columns: minmax(0, 1fr); }
+  .hub-settings-grid label { min-width: 0; }
+  .hub-settings-grid input { max-width: 100%; }
+  .workspace-columns, .studio-workspace, .settings-grid, .api-layout { grid-template-columns: minmax(0, 1fr) !important; }
+  .workspace-launch { flex-wrap: wrap; }
+  .workspace-main > section, .studio-main > section { min-width: 0; }
+  .workspace-form, .task-composer { min-width: 0; max-width: 100%; }
+  .workspace-form input, .workspace-form select, .workspace-form textarea, .task-composer input, .task-composer select, .task-composer textarea { max-width: 100%; }
+  .api-toolbar { flex-wrap: wrap; }
+  .endpoint-list { grid-template-columns: minmax(0, 1fr); }
+  .endpoint-panel { max-height: 240px !important; }
+  .endpoint-code { max-width: 100%; }
+  .result-actions { flex-wrap: wrap; min-width: 0; }
+  .request-inputs { max-height: none; }
+  .settings-panel, .setting-panel { min-width: 0; }
+  .main .col2, .main .split, .main .account-grid { grid-template-columns: minmax(0, 1fr); }
+  .main .head-actions { flex-wrap: wrap; }
+  .main > main { overflow-x: hidden; }
+  .modal-content { max-width: 100%; }
+  .editor-field-row { grid-template-columns: minmax(0, 1fr); }
+  .editor-account-summary { align-items: flex-start; }
+  .editor-account-summary a { max-width: 100px; overflow-wrap: anywhere; }
+}
+@media (max-width: 360px) {
+  .topbar, .main > header { padding-right: 8px; gap: 0 5px; }
+  .gc-account-tools { gap: 5px; }
+  .gc-user-name { max-width: 75px; }
+  .theme-toggle { padding: 0 6px; gap: 4px; }
+}

@@ -76,7 +76,7 @@ def local_session(kind):
                        password="Ob1!" + secrets.token_urlsafe(28))
             write(file, cfg)
             response = requests.post(f"http://127.0.0.1:{port}/api/v1/auth/register",
-                json={"email": cfg["email"], "password": cfg["password"], "display_name": "观潮本机用户"}, timeout=20)
+                json={"email": cfg["email"], "password": cfg["password"], "display_name": "暖暖影视本机用户"}, timeout=20)
         else:
             response = requests.post(f"http://127.0.0.1:{port}/api/v1/auth/login",
                 json={"email": cfg["email"], "password": cfg["password"]}, timeout=20)

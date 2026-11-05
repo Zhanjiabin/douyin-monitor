@@ -22,7 +22,7 @@
   const svg = key => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[key]}"/></svg>`;
   const sidebar = document.querySelector('aside.sidebar');
   sidebar.classList.add('gc-sidebar'); sidebar.id='appNavigation';
-  sidebar.innerHTML=`<a class="gc-brand" href="/home"><div class="gc-mark"><i></i><i></i><i></i></div><span>观潮</span></a><nav class="gc-nav" aria-label="主导航">${nav.map(([href,label,key,page])=>`<a href="${href}" ${page&&current==='screen'?`data-page="${page}"`:''}>${svg(key)}<span>${label}</span></a>`).join('')}</nav><div class="gc-sidebar-footer"><a class="gc-settings" href="/settings">${svg('settings')}<span>设置</span></a>${current==='screen'?'<button id="methodButton">指标口径</button>':''}${current==='manage'?'<span id="alertBadge" hidden></span>':''}</div>`;
+  sidebar.innerHTML=`<a class="gc-brand" href="/home"><div class="gc-mark"><i></i><i></i><i></i></div><span>暖暖影视</span></a><nav class="gc-nav" aria-label="主导航">${nav.map(([href,label,key,page])=>`<a href="${href}" ${page&&current==='screen'?`data-page="${page}"`:''}>${svg(key)}<span>${label}</span></a>`).join('')}</nav><div class="gc-sidebar-footer"><a class="gc-settings" href="/settings">${svg('settings')}<span>设置</span></a>${current==='screen'?'<button id="methodButton">指标口径</button>':''}${current==='manage'?'<span id="alertBadge" hidden></span>':''}</div>`;
   const menu=document.createElement('button'); menu.type='button'; menu.className='gc-menu';
   menu.setAttribute('aria-label','打开导航');menu.setAttribute('aria-controls','appNavigation');menu.setAttribute('aria-expanded','false');menu.innerHTML='<span></span><span></span><span></span>';
   document.body.append(menu);
@@ -34,13 +34,25 @@
   function selected(){let target=location.pathname+location.hash;if(location.pathname==='/discover'||location.pathname.startsWith('/discover/'))target='/discover';if(location.pathname==='/screen'&&!location.hash)target='/screen#overview';if(location.pathname==='/settings'||['/workspace','/studio','/manage','/tikhub'].includes(location.pathname))target='/settings';sidebar.querySelectorAll('.gc-nav a,.gc-settings').forEach(a=>{const on=a.getAttribute('href')===target;a.classList.toggle('is-active',on);if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')})}
   addEventListener('hashchange',selected);addEventListener('popstate',selected);addEventListener('gc-route-change',selected);selected();
   const originalFetch=window.fetch.bind(window);
+  const header=document.querySelector('.topbar,.main>header');
+  const actions=document.createElement('div');actions.className='gc-topbar-actions';
+  const pageActions=header.querySelector('.top-actions,.head-actions,.hub-header-actions');
+  pageActions?.querySelectorAll('#reloadPage,#reloadSnapshot,#reloadAnalytics').forEach(button=>{
+    button.classList.add('gc-page-refresh');button.title=button.textContent;button.setAttribute('aria-label',button.textContent);
+  });
+  if(pageActions)actions.append(pageActions);
+  const tools=document.createElement('div');tools.className='gc-account-tools';
+  tools.append(AppTheme.createToggle());actions.append(tools);header.append(actions);
   window.fetch=async(...args)=>{const response=await originalFetch(...args);if(response.status===401){location.replace('/login?next='+encodeURIComponent(location.pathname+location.search+location.hash));}return response;};
   originalFetch('/api/auth/session').then(r=>r.json()).then(session=>{
     if(!session.enabled||!session.authenticated)return;
     const row=document.createElement('div');row.className='gc-user-session';
-    const name=document.createElement('span');name.textContent=session.username;
-    const logout=document.createElement('button');logout.type='button';logout.textContent='退出登录';
-    logout.onclick=async()=>{logout.disabled=true;try{const response=await originalFetch('/api/auth/logout',{method:'POST'});if(!response.ok)throw Error();location.replace('/login');}catch{logout.disabled=false;logout.textContent='重试退出';}};
-    row.append(name,logout);sidebar.querySelector('.gc-sidebar-footer').append(row);
+    const name=document.createElement('span');name.className='gc-user-name';
+    name.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></svg>';
+    const username=document.createElement('span');username.textContent=session.username;name.title=session.username;name.append(username);
+    const logout=document.createElement('button');logout.type='button';logout.className='gc-logout';logout.title='退出登录';logout.setAttribute('aria-label','退出登录');
+    logout.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H4v18h5M9 12h12m-5-5 5 5-5 5"/></svg><span>退出登录</span>';
+    logout.onclick=async()=>{logout.disabled=true;try{const response=await originalFetch('/api/auth/logout',{method:'POST'});if(!response.ok)throw Error();location.replace('/login');}catch{logout.disabled=false;logout.title='退出失败，点击重试';logout.setAttribute('aria-label',logout.title);}};
+    row.append(name,logout);tools.append(row);
   }).catch(()=>{});
 })();
