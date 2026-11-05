@@ -175,6 +175,7 @@
     if(workTab==='comparison')html='<div data-comparison-host></div>';
     d.querySelector('[data-work-pane]').innerHTML=html;
     d.classList.toggle('showing-history',workTab==='history');
+    d.classList.toggle('short-history',workTab==='history'&&workDetail.history.length<7);
     if(workTab==='history')historyTable(d.querySelector('[data-metric-history]'),workDetail.history);
     if(workTab==='comparison')GuanchaoAudience.comparison(d.querySelector('[data-comparison-host]'),workDetail.comparison);
     const copy=d.querySelector('[data-copy-work]');if(copy)copy.onclick=async()=>{try{await navigator.clipboard.writeText(workDetail.description);copy.textContent='已复制';}catch{copy.textContent='复制失败';}};

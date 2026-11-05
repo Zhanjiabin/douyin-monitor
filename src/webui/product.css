@@ -163,3 +163,12 @@ body[data-page=home] .pagination select,body[data-page=home] .pagination .btn{he
 #workDetailDialog.showing-history .metric-history-scroll th,#workDetailDialog.showing-history .metric-history-scroll td{padding:8px 10px!important}
 #workDetailDialog.showing-history .metric-history-scroll th:last-child{width:180px}
 @media(max-width:650px){#workDetailDialog.showing-history{width:calc(100vw - 16px);height:calc(100dvh - 16px);max-height:calc(100dvh - 16px)}#workDetailDialog.showing-history>.product-dialog-body{padding:10px}#workDetailDialog.showing-history .modal-work-header .work-actions{gap:5px}#workDetailDialog.showing-history .modal-work-header .btn{height:26px;font-size:10px;padding:0 8px}#workDetailDialog.showing-history .product-metrics{gap:0}#workDetailDialog.showing-history .product-metrics b{font-size:14px}#workDetailDialog.showing-history .research-tabs{gap:16px;overflow:auto;min-height:42px}#workDetailDialog.showing-history .research-tabs button{white-space:nowrap;font-size:11px}}
+
+/* Detail dialogs also open on pages without the research stylesheet. */
+#workDetailDialog .research-tabs{display:flex;align-items:stretch;gap:24px;min-height:43px;border-bottom:1px solid #e0e8ef;flex-shrink:0;overflow:auto}
+#workDetailDialog .research-tabs button{position:relative;padding:0;font-size:11px;color:#8296a5;white-space:nowrap;min-height:42px}
+#workDetailDialog .research-tabs button.active{color:#26789f;font-weight:500}
+#workDetailDialog .research-tabs button.active:after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:#26789f}
+#workDetailDialog.showing-history.short-history{height:fit-content}
+#workDetailDialog.short-history .modal-work-pane,#workDetailDialog.short-history [data-metric-history],#workDetailDialog.short-history .metric-history{flex:0 1 auto}
+#workDetailDialog.short-history .metric-history-scroll{flex:0 1 auto;max-height:40dvh}

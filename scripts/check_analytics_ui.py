@@ -78,6 +78,14 @@ with tempfile.TemporaryDirectory(prefix='analytics-ui-') as folder,patch.object(
             page.locator('#analyticsFilters [type=submit]').click()
             expect(page.locator('#analyticsAccount h1')).to_contain_text('同行')
             assert len(api_calls)==count+1
+            page.click('[data-dimension=works]');page.click('[data-display=table]')
+            page.locator('#analyticsContent [data-open-work]').first.click()
+            page.wait_for_selector('#workDetailDialog .work-last-update');page.click('#workDetailDialog [data-work-tab=history]')
+            assert page.evaluate("getComputedStyle(document.querySelector('#workDetailDialog .research-tabs')).display==='flex'")
+            assert page.evaluate("document.querySelector('#workDetailDialog').getBoundingClientRect().height<720")
+            assert page.evaluate("document.querySelector('#workDetailDialog tbody tr:last-child').getBoundingClientRect().bottom<=document.querySelector('#workDetailDialog .metric-history-scroll').getBoundingClientRect().bottom+1")
+            page.screenshot(path=str(OUT/'short-history.png'),full_page=True)
+            page.click('#workDetailDialog [data-dismiss]');page.click('[data-display=charts]');page.click('[data-dimension=trend]')
             page.locator('#analyticsFilters [type=reset]').click()
             expect(page.locator('#analyticsAccount h1')).to_contain_text('安夏')
             assert page.input_value('[name=keyword]')==''

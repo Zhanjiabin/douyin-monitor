@@ -58,6 +58,20 @@ def dashboard(account='',days=30,keyword=''):
                     deltas.append(row[key]-prior[key])
             point['growth'][key]=sum(deltas) if deltas else None;point['growth_samples'][key]=len(deltas)
         series.append(point)
+    # A connected cumulative line must keep the same works and measurement
+    # scopes on every observed date. Otherwise fewer refreshes look like a loss.
+    for point in series:
+        point['comparable']={};point['comparable_samples']={}
+    for key in METRICS:
+        observed=[values for values in daily.values() if any(row.get(key) is not None for row in values.values())]
+        groups=[{(aid,*row['_'+key]) for aid,row in values.items() if row.get(key) is not None} for values in observed]
+        common=set.intersection(*groups) if groups else set()
+        for point in series:
+            values=daily.get(point['date'],{})
+            valid=[values[aid][key] for aid,source,scope in common
+                   if aid in values and values[aid].get('_'+key)==(source,scope) and values[aid].get(key) is not None]
+            point['comparable'][key]=sum(valid) if valid and len(valid)==len(common) else None
+            point['comparable_samples'][key]=len(valid)
     # Latest values are limited to observations in the selected period. Missing
     # fields stay unknown rather than inheriting an unrelated or old snapshot.
     works=[{**v,**{key:latest.get(v['aweme_id'],{}).get(key) for key in METRICS},
@@ -78,4 +92,4 @@ def dashboard(account='',days=30,keyword=''):
             'hours':[publication(pub_hours[hour],hour=hour) for hour in range(24)],
             'weekdays':[publication(weekdays[weekday],weekday=weekday) for weekday in range(7)],
             'interactions':{key:sum(v[key] for v in works if v[key] is not None) if any(v[key] is not None for v in works) else None for key in METRICS[1:]},
-            'method':'仅统计当前账号已保存的观测；增长比较相邻日期、同作品及相同来源与口径。发布时间使用北京时间。'}
+            'method':'仅统计当前账号已保存的观测；累计趋势使用固定样本，日增比较相邻日期、同作品及相同来源与口径。发布时间使用北京时间。'}

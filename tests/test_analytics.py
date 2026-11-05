@@ -76,6 +76,18 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual(data['works'][0]['play_count'],100)
         self.assertEqual(data['works'][0]['digg_count'],0)
 
+    def test_cumulative_trend_keeps_a_fixed_cohort_when_daily_coverage_changes(self):
+        extra='7703151458754472789'
+        intelligence.save_account_posts(self.uid,'自己的咖啡店',[{'aweme_id':extra,'title':'只刷新过一天'}])
+        self.event('2026-11-04 10:00',100)
+        self.event('2026-11-04 10:00',1000,aid=extra)
+        self.event('2026-11-05 10:00',200)
+        rows=analytics.dashboard(self.uid,7)['series']
+        self.assertEqual([r['play_count'] for r in rows[-2:]],[1100,200])
+        self.assertEqual([r['comparable']['play_count'] for r in rows[-2:]],[100,200])
+        self.assertEqual([r['comparable_samples']['play_count'] for r in rows[-2:]],[1,1])
+        self.assertIsNone(rows[0]['comparable']['play_count'])
+
     def test_period_limits_latest_values_and_keyword_is_account_scoped(self):
         self.event('2026-10-01 10:00',999)
         self.event('2026-11-05 10:00',None,digg_count=10)
