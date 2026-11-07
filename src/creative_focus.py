@@ -35,7 +35,7 @@ REFERENCES = [
 ]
 
 TUTORIAL = re.compile(r'教程|教学|工作流|提示词|保姆级|训练模型|工具测评|工具评测|AI工具|模型测评|卖课|课程|招学员|软件安装|一键生成工具', re.I)
-AI = re.compile(r'\bai\b|aigc|人工智能|seedance|seko|可灵|即梦|豆包', re.I)
+AI = re.compile(r'\bai\b|aigc|人工智能|seedance|seko|RoboNeo|LibTV|\bVeo\d?\b|\bSora\d?\b|可灵|即梦|豆包', re.I)
 SERIES = re.compile(r'(?<!\w)(?:渡骸|南僵)(?=$|\W|第[一二三四五六七八九十百\d])')
 
 
@@ -49,7 +49,7 @@ def validate(value):
 def classify(item):
     title = str(item.get('title') or '')
     # Chinese hashtags commonly touch "AI", so word-boundaries alone miss them.
-    has_ai = bool(AI.search(title) or re.search(r'ai(?:漫|短|真|萌|宠|小猫|小狗|电影|影片|大|剧|原|创|视|动|作|生|中式|国风)|(?:由|使用)\s*ai', title, re.I))
+    has_ai = bool(AI.search(title) or re.search(r'ai(?:漫|短|真|萌|宠|小猫|小狗|电影|影片|大|剧|原|创|视|动|作|生|中式|国风|科幻|奇幻|史诗)|(?:由|使用)\s*ai', title, re.I))
     if TUTORIAL.search(title):
         return {'lanes': [], 'labels': [], 'evidence': [], 'excluded': '教程 / 工具内容'}
     found = []
@@ -57,9 +57,11 @@ def classify(item):
         found.append('comic')
     if has_ai and re.search(r'短剧|真人|剧集', title) and 'comic' not in found:
         found.append('drama')
-    if (has_ai and re.search(r'萌宠|宠物|小猫|猫咪|小狗|奶猫|奶鼠|拟人动物|动物拟人|哈基米|萌萌|治愈系猫', title)) or re.search(r'猫子柒|云咪|juju某猪', title, re.I):
+    if (has_ai and re.search(r'萌宠|宠物|小猫|猫咪|小狗|奶猫|奶鼠|拟人动物|动物拟人|动物故事|哈基米|萌萌|治愈系猫', title)) or re.search(r'猫子柒|云咪|juju某猪', title, re.I):
         found.append('pet')
-    if SERIES.search(title) or (has_ai and re.search(r'大片|电影|影视|中式恐怖|科幻短片|奇幻短片|史诗|世界观', title)):
+    explicit_film = re.search(r'ai(?:gc)?\s*(?:原创|剧情|动画|科幻|奇幻)?\s*(?:大片|电影|影视短片)|#(?:原创电影|剧情大片|科幻短片|奇幻短片)', title, re.I)
+    film_style = re.search(r'中式恐怖|科幻短片|奇幻短片|史诗', title) and 'pet' not in found
+    if SERIES.search(title) or (has_ai and (explicit_film or film_style)):
         found.append('cinema')
     if not found and has_ai and re.search(r'短片|原创动画|原创故事|原创视频|AI视频|AI创作|AI原创|脑洞', title, re.I):
         found.append('other')

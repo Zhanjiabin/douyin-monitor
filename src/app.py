@@ -238,8 +238,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file("discovery-hub.html")
             if path == "/discover/advanced":
                 return self._file("discovery.html")
-            if path in ("/discovery-hub.js", "/discovery-hub.css"):
+            if path in ("/discovery-hub.js", "/discovery-hub.css", "/ip-radar.js", "/ip-radar.css"):
                 return self._file(path[1:])
+            if path.startswith('/api/discovery/radar/'):
+                import ip_radar
+                args = parse_qs(urlparse(self.path).query)
+                try:
+                    if path.endswith('/library'):
+                        return self._json(ip_radar.library(json.loads(args.get('query', ['{}'])[0])))
+                    if path.endswith('/status'):
+                        return self._json(ip_radar.status())
+                    if path.endswith('/group'):
+                        return self._json(ip_radar.group_detail(args.get('id', [''])[0]))
+                except (ValueError, TypeError) as exc:
+                    return self._json({'error': str(exc)}, 400)
             if path.startswith('/api/discovery/hub/'):
                 import discovery_hub as hub
                 args = parse_qs(urlparse(self.path).query)
@@ -520,6 +532,16 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/discovery/plan":
                 return self._json(discovery.plan(data))
+            if path.startswith('/api/discovery/radar/'):
+                import ip_radar
+                if path.endswith('/plan'):
+                    return self._json(ip_radar.plan(data))
+                if path.endswith('/submit'):
+                    return self._json(ip_radar.submit(data), 202)
+                if path.endswith('/settings'):
+                    return self._json(ip_radar.save_config(data))
+                if path.endswith('/pin'):
+                    return self._json(ip_radar.pin(data))
             if path.startswith('/api/discovery/hub/'):
                 import discovery_hub as hub
                 if path.endswith('/monitor-account'):

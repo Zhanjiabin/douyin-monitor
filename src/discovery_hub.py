@@ -242,7 +242,7 @@ def all_rows(kind='works', include_native=False, until=None):
     return rows
 
 
-def decorate(observations):
+def decorate(observations, until=None):
     grouped = defaultdict(list)
     for row in observations:
         grouped[row['item_id']].append(row)
@@ -285,6 +285,8 @@ def decorate(observations):
             if saved:
                 item[field+'_path'] = saved
         entries.append(item)
+    import ip_radar
+    ip_radar.overlay([r for r in entries if r['kind'] == 'works'], until=until)
     return account_states(entries)
 
 
@@ -322,6 +324,8 @@ def monitor_account(data):
                 raise ValueError('尚未收录这条作品，请先采集')
             item = {'id': aid}
         item['id'] = aid
+        import ip_radar
+        ip_radar.overlay([item])
         account_states([item])
         if item['account_identity_conflict']:
             raise ValueError('作品的作者身份不一致，请核实后再添加')
@@ -393,12 +397,16 @@ def library(data=None, export_all=False):
         # Numeric rank belongs to one board; do not present unlike ranks as a global rank.
         rows.sort(key=lambda r: (r.get('source', ''), r.get('rank') if r.get('rank') is not None else float('inf')))
     else:
-        fields = {'seen': 'last_seen', 'new': 'published_at', 'plays': 'board_play_count', 'likes': 'digg_count', 'heat': 'heat'}
+        fields = {'seen': 'last_seen', 'new': 'published_at', 'plays': 'board_play_count', 'likes': 'digg_count', 'heat': 'heat',
+                  'video_plays': 'play_count', 'comments': 'comment_count', 'saves': 'collect_count', 'shares': 'share_count',
+                  'updated': 'metrics_updated_at', 'fans': 'fans', 'author': 'account_name', 'title': 'title'}
         if sort == 'rising':
             rows.sort(key=lambda r: ((r.get('comparison') or {}).get('rank_change') is not None, (r.get('comparison') or {}).get('rank_change') or 0), reverse=True)
         elif sort in fields:
             field = fields[sort]
-            rows.sort(key=lambda r: (r.get(field) is not None, r.get(field) or ('' if field in {'last_seen', 'published_at'} else -1)), reverse=True)
+            text_field = field in {'last_seen', 'published_at', 'metrics_updated_at', 'account_name', 'title'}
+            missing = [r for r in rows if r.get(field) is None]
+            rows = sorted([r for r in rows if r.get(field) is not None], key=lambda r: r[field], reverse=data.get('direction', 'desc') != 'asc')+missing
         else:
             raise ValueError('排序无效')
     size = d.integer(data.get('page_size', 20), 1, 100, '每页数量')
@@ -418,7 +426,9 @@ def history(kind, ident):
         raise ValueError('尚未收录这条内容')
     item = decorate(rows)[0]
     item['creative'] = creative.classify(item)
-    return {'item': item, 'history': [{'observed_at': r['observed_at'], 'source': r['source'], 'source_title': d.SOURCES[r['source']][0],
+    import metric_history
+    return {'item': item, 'metric_history': metric_history.video(str(ident)) if kind == 'works' else [],
+            'history': [{'observed_at': r['observed_at'], 'source': r['source'], 'source_title': d.SOURCES[r['source']][0],
                                      'query': json.loads(r['query_json']), 'scope_key': r['scope_key'], 'snapshot_id': r['snapshot_id'],
                                      **{k: json.loads(r['value_json']).get(k) for k in ['rank', 'heat', 'board_play_count', 'digg_count', 'comment_count', 'share_count', 'collect_count']}}
                                     for r in reversed(rows)]}
@@ -445,8 +455,8 @@ def generate_report(data=None):
     start_s, end_s = start.isoformat(), end.isoformat()
     works_obs = all_rows('works', until=end_s)
     hot_obs = all_rows('hot', until=end_s)
-    works = [r for r in decorate(works_obs) if r['last_seen'] >= start_s]
-    hot = [r for r in decorate(hot_obs) if r['last_seen'] >= start_s]
+    works = [r for r in decorate(works_obs, until=end_s) if r['last_seen'] >= start_s]
+    hot = [r for r in decorate(hot_obs, until=end_s) if r['last_seen'] >= start_s]
     focus = creative.validate(data.get('focus'))
     if focus != 'all':
         for item in works + hot:
@@ -532,7 +542,9 @@ def generate_report(data=None):
     if focus != 'all':
         # A separate namespace keeps previously saved general reports intact.
         ident += '-'+focus
-        payload.update(focus=focus, anchor_date=anchor_date, ideas=[],
+        import ip_radar
+        radar = ip_radar.report(start_s, end_s)
+        payload.update(focus=focus, anchor_date=anchor_date, ideas=[], radar=radar,
                        title=('AI 内容日报' if kind == 'daily' else 'AI 内容周报')+' · '+anchor_date,
                        opportunities=creative.opportunities(works),
                        lanes=[{**lane, 'works': len([r for r in works if lane['id'] in r['creative']['lanes']]),
@@ -607,6 +619,16 @@ def export_library(data):
 def export_report(identity):
     r = reports(identity)
     esc = lambda value: html.escape(str(value or ''))
+    if r.get('radar'):
+        body = '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(r['title'])+'</title><style>body{font:14px/1.7 system-ui;max-width:1120px;margin:32px auto;padding:0 16px;color:#24394c}h1{font-size:23px}h2{font-size:17px}table{border-collapse:collapse;width:100%}td,th{padding:10px;text-align:left;border-bottom:1px solid #dce4eb}small{display:block;color:#748594}a{color:#236c91}</style><h1>'+esc(r['title'])+'</h1><p>'+esc(r['start_at'])+' — '+esc(r['end_at'])+'</p>'
+        for title, groups in [('观测增长', r['radar']['rising']), ('新收录 IP', r['radar']['new_ips']), ('近期参考', [g for g in r['radar']['candidates'] if g['recent_works']])]:
+            body += '<h2>'+title+'</h2><table><tr><th>IP / 作者</th><th>识别线索</th><th>近期作品</th><th>代表作播放</th><th>点赞</th><th>日均增长</th></tr>'
+            for g in groups:
+                w = g['representative']
+                cell = lambda v: esc(v) if v is not None else '—'
+                body += '<tr><td><a href="'+esc(w['url'])+'">'+esc(g['name'])+'</a><small>'+esc(g['account_name'])+'</small></td>'+''.join('<td>'+cell(v)+'</td>' for v in (g['evidence'], g['recent_works'], w.get('play_count'), w.get('digg_count'), g['peak_daily_growth']))+'</tr>'
+            body += '</table>'
+        return (body+'</html>').encode('utf-8')
     ideas = ''.join('<article><h3>'+esc(i['draft'])+'</h3><p>'+esc(i['outline'])+'</p><p>热点依据：'+esc(i['topic'])+'；热度 '+esc(i['heat'])+'</p>'+('<p><a href="https://www.douyin.com/video/'+esc(i['reference_id'])+'">形式参考：'+esc(i['reference_title'])+'</a></p>' if i['reference_id'] else '')+'</article>' for i in r['ideas'])
     if r.get('focus'):
         ideas = ''.join('<article><h3>'+esc(i['label'])+' · <a href="'+esc(i['work']['url'])+'">'+esc(i['work']['title'])+'</a></h3><p>'+esc(i['study'])+'</p></article>' for i in r['opportunities'])

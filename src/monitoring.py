@@ -276,6 +276,8 @@ class MonitorScheduler(threading.Thread):
                 discovery.tick()
                 import discovery_hub
                 discovery_hub.tick()
+                import ip_radar
+                ip_radar.tick()
             except Exception:
                 self.log("发现定时更新本轮检查失败；未自动提交请求")
             self._stop_event.wait(15)
