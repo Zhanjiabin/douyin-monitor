@@ -16,6 +16,7 @@ import playback
 import store
 import tikhub
 import media_cache
+import intelligence
 
 
 class ClassificationTests(unittest.TestCase):
@@ -134,6 +135,76 @@ class FocusedLibraryTests(unittest.TestCase):
             result = d.execute({'query': query, 'confirmed': True, 'fingerprint': preview['fingerprint']})
         self.assertTrue(result['ok']); self.assertEqual(len(result['data']), 1000)
         thumbnails.assert_called_once()
+
+    def account_work(self, uid=''):
+        self.seed()
+        aid = '7703151458754472700'
+        row = store.q('SELECT snapshot_id,value_json FROM discovery_sightings WHERE item_id=?', (aid,))[0]
+        item = json.loads(row['value_json'])
+        item.update(sec_uid=uid, avatar_path='/media/fixture.jpg', fans=12345)
+        store.x('UPDATE discovery_sightings SET value_json=? WHERE snapshot_id=? AND item_id=?',
+                (json.dumps(item), row['snapshot_id'], aid))
+        return aid
+
+    def test_account_shortcut_reuses_id_without_paid_requests_and_preserves_settings(self):
+        uid = 'MS4wLjABAAAA_SHORTCUT_ACCOUNT'
+        aid = self.account_work(uid)
+        with patch.object(d, 'submit', side_effect=AssertionError('No paid lookup')), patch.object(tikhub.requests, 'request', side_effect=AssertionError('No network')):
+            result = hub.monitor_account({'aweme_id': aid})
+            self.assertTrue(result['created']); self.assertIsNone(result['job'])
+            account = intelligence.list_tracked_accounts()[0]
+            self.assertEqual((account['nickname'], account['avatar_path'], account['role'], account['follower_count']), ('作者0', '/media/fixture.jpg', 'peer', 12345))
+            intelligence.update_account_settings(uid, '自有账号备注', 'own', False)
+            result = hub.monitor_account({'aweme_id': aid})
+            self.assertFalse(result['created']); self.assertTrue(result['resumed'])
+            account = intelligence.list_tracked_accounts()[0]
+            self.assertEqual((account['note'], account['role'], account['enabled']), ('自有账号备注', 'own', 1))
+            self.assertEqual(len(intelligence.list_tracked_accounts()), 1)
+            self.assertTrue(hub.history('works', aid)['item']['account_monitor']['enabled'])
+
+    def test_missing_author_id_queues_one_lookup_and_reuses_pending_job(self):
+        aid = self.account_work()
+        playback.save_settings({'api_key': 'fixture-only', 'max_calls_per_job': 5, 'daily_call_limit': 100})
+        pending = {'id': 'abcdef1234567890', 'status': 'running', 'endpoint': 'discovery'}
+        request = douk.metadata(pending['id']).parent/'request.json'; request.parent.mkdir(parents=True)
+        request.write_text(json.dumps({'query': {'source': 'monitor', 'aweme_ids': [aid]}}))
+        with patch.object(douk, 'jobs', return_value=[]), patch.object(d, 'submit', return_value=pending) as submit:
+            self.assertEqual(hub.monitor_account({'aweme_id': aid})['job']['id'], pending['id'])
+            self.assertEqual(submit.call_args.args[0]['aweme_id'], aid)
+            self.assertEqual(submit.call_args.args[0]['source'], 'monitor')
+            with patch.object(douk, 'jobs', return_value=[pending]):
+                self.assertEqual(hub.monitor_account({'aweme_id': aid})['job']['id'], pending['id'])
+            submit.assert_called_once()
+            with self.assertRaises(ValueError):
+                hub.monitor_account({'aweme_id': aid, 'resolve_only': True})
+            submit.assert_called_once()  # Poll completion can never start a second paid call.
+
+    def test_shortcut_rejects_spoofed_or_conflicting_author_and_unknown_work(self):
+        aid = self.account_work('MS4wLjABAAAA_CACHED_AUTHOR')
+        uid = 'MS4wLjABAAAA_BOUND_AUTHOR'
+        intelligence.add_account(uid, '保留备注', 'own')
+        intelligence.save_account_posts(uid, '已核实作者', [{'aweme_id': aid, 'title': '已监控作品'}])
+        with patch.object(d, 'submit', side_effect=AssertionError('No lookup')):
+            for data in [{'aweme_id': aid}, {'aweme_id': aid, 'sec_uid': uid}, {'aweme_id': '7700000000000000000'}]:
+                with self.assertRaises(ValueError):
+                    hub.monitor_account(data)
+        self.assertEqual(len(intelligence.list_tracked_accounts()), 1)
+        self.assertTrue(hub.history('works', aid)['item']['account_identity_conflict'])
+
+    def test_saved_report_shows_live_account_state_from_verified_video_binding(self):
+        aid = self.account_work()
+        report = hub.generate_report({'focus': 'ai'})
+        uid = 'MS4wLjABAAAA_REPORT_ACCOUNT'
+        intelligence.add_account(uid, role='peer')
+        intelligence.save_account_posts(uid, '作者0', [{'aweme_id': aid, 'title': '已核实作品'}])
+        loaded = hub.reports(report['id'])
+        work = next(r for r in loaded['references'] if r['id'] == aid)
+        self.assertEqual(work['sec_uid'], uid)
+        self.assertTrue(work['account_monitor']['enabled'])
+        intelligence.toggle_tracked_account(uid, False)
+        work = next(r for r in hub.reports(report['id'])['references'] if r['id'] == aid)
+        self.assertFalse(work['account_monitor']['enabled'])
+        self.assertEqual(hub.reports(report['id'])['generated_at'], report['generated_at'])
 
 
 if __name__ == '__main__':

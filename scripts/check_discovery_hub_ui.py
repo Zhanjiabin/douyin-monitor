@@ -12,7 +12,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'))
-import app,corpus,discovery as d,discovery_hub as hub,douk,media_cache,playback,store,tikhub
+import app,corpus,discovery as d,discovery_hub as hub,douk,media_cache,playback,store,tikhub,intelligence
 
 OUT=ROOT/'output/discovery-hub-ui';OUT.mkdir(exist_ok=True)
 errors=[];submitted=[];jobs=[]
@@ -32,6 +32,11 @@ def seed(source,rows,when,**extra):
 
 def fake_submit(req):
     submitted.append(req)
+    if req.get('query',{}).get('source')=='monitor':
+        aid=req['query']['aweme_ids'][0];work=next(r for r in works if r['id']==aid)
+        uid='MS4wLjABAAAA_UI_CREATOR_1'
+        intelligence.add_account(uid,role='peer')
+        intelligence.save_account_posts(uid,work['account_name'],[{'aweme_id':aid,'title':work['title']}])
     job={'id':uuid.uuid4().hex[:16],'title':req.get('title','测试同步'),'status':'completed','created_at':at.isoformat(),'count':20}
     jobs.append(job)
     meta=douk.metadata(job['id']);meta.parent.mkdir(parents=True,exist_ok=True)
@@ -74,6 +79,7 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
     works=[{'id':str(7703151458754472787+i),'aweme_id':str(7703151458754472787+i),'title':captions[i%4]+f' 第{i+1}篇',
             'source':'video_total','cover_path':covers[i%len(covers)] if covers else '',
             'account_name':['光影实验室','未来放映室','AI故事制造'][i%3],'fans':8500+i*180,'rank':i+1,
+            'sec_uid':'MS4wLjABAAAA_UI_CREATOR_'+str(i%3) if i%3!=1 else '',
             'board_play_count':2300000-i*23000,'digg_count':63000-i*317,'follow_count':500+i,
             'like_rate':.0274,'follow_rate':.0019,'index':139000-i*100,'duration':87,
             'published_at':(at-timedelta(hours=i+3)).isoformat(),'url':'https://www.douyin.com/video/'+str(7703151458754472787+i)} for i in range(61)]
@@ -95,6 +101,20 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             assert page.locator('#appNavigation a.is-active').inner_text()=='发现'
             assert page.locator('#hubPager [data-pager-total]').inner_text()=='共 61 条作品'
             assert page.locator('#hubTable tbody tr').count()==20
+            first=page.locator('#hubTable [data-hub-account]').first
+            assert first.inner_text()=='监控账号';first.click()
+            page.wait_for_function("document.querySelector('#hubTable [data-hub-account]').textContent==='已监控'")
+            assert len(intelligence.list_tracked_accounts())==1 and not submitted
+            intelligence.toggle_tracked_account('MS4wLjABAAAA_UI_CREATOR_0',False)
+            page.click('#hubFilters button[type=submit]')
+            page.wait_for_function("document.querySelector('#hubTable [data-hub-account]').textContent==='恢复监控'")
+            page.locator('#hubTable [data-hub-account]').first.click()
+            page.wait_for_function("document.querySelector('#hubTable [data-hub-account]').textContent==='已监控'")
+            assert not submitted
+            page.locator('#hubTable [data-hub-account]').nth(1).click()
+            page.wait_for_function("document.querySelectorAll('#hubTable [data-hub-account]')[1].textContent==='已监控'")
+            assert len(submitted)==1 and submitted[0]['query']['aweme_ids']==[works[1]['id']]
+            assert len(intelligence.list_tracked_accounts())==2
             assert '教程' not in page.locator('#hubTable tbody').inner_text()
             assert page.locator('#hubFilters select[name=focus]').input_value()=='ai'
             page.select_option('#hubFilters select[name=focus]','pet')
@@ -141,10 +161,10 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             page.locator('[data-creative-reference="0"]').click()
             page.wait_for_selector('#hubCreative[open]')
             assert page.locator('#hubCreativeForm input[name=keyword]').input_value()=='渡骸'
-            assert not submitted,'reference selection must not spend requests'
+            assert len(submitted)==1,'reference selection must not spend requests'
             page.click('#hubCreativeForm button[type=submit]')
             page.wait_for_selector('#hubCreativeQuote [data-confirm]:not([disabled])')
-            assert not submitted,'a quote must not execute the query'
+            assert len(submitted)==1,'a quote must not execute the query'
             page.fill('#hubCreativeForm input[name=keyword]','南僵')
             assert not page.locator('#hubCreativeQuote').is_visible(),'editing must invalidate the quote'
             page.click('#hubCreativeForm button[type=submit]')
@@ -180,7 +200,7 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             page.select_option('#hubSchedule select[name=pages]','3')
             page.fill('#hubSchedule input[name=times]','09:00，21:00')
             page.wait_for_function("document.querySelector('#hubSchedule [data-estimate]').textContent.includes('本轮最多 7 次')")
-            assert len(submitted)==1
+            assert len(submitted)==2
             page.screenshot(path=str(OUT/'automation.png'),full_page=True)
             page.click('#hubSchedule [data-save]');page.wait_for_selector('#hubSchedule',state='hidden')
             assert hub.config()['enabled'];assert hub.config()['times']==['09:00','21:00']
@@ -188,9 +208,9 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             page.click('#hubSync');page.wait_for_selector('#hubSchedule [data-save]:not([disabled])')
             page.select_option('#hubSchedule select[name=pages]','1')
             page.wait_for_function("document.querySelector('#hubSchedule [data-estimate]').textContent.includes('本轮最多 3 次')")
-            assert len(submitted)==1
+            assert len(submitted)==2
             page.click('#hubSchedule [data-save]');page.wait_for_selector('#hubSchedule',state='hidden')
-            assert len(submitted)==4
+            assert len(submitted)==5
             assert all('multi_video_statistics' not in str(req) for req in submitted)
             page.set_viewport_size({'width':390,'height':844});page.goto(base+'/discover');page.wait_for_selector('[data-hub-detail]')
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),'page-level overflow on mobile'

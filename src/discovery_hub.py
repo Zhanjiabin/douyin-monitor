@@ -16,6 +16,7 @@ import playback
 import store
 import tikhub
 import creative_focus as creative
+import intelligence
 from media_cache import cached_image
 
 LOCK = threading.RLock()
@@ -284,7 +285,75 @@ def decorate(observations):
             if saved:
                 item[field+'_path'] = saved
         entries.append(item)
-    return entries
+    return account_states(entries)
+
+
+def account_states(items):
+    """Use stable IDs only. Matching nicknames never establish identity."""
+    intelligence.init_account_tables()
+    accounts = {r['sec_uid']: r for r in intelligence.list_tracked_accounts()}
+    bindings = {r['aweme_id']: r['sec_uid'] for r in store.q('SELECT aweme_id,sec_uid FROM tracked_account_videos')}
+    for item in items:
+        aid = str(item.get('id') or item.get('aweme_id') or '')
+        cached_uid, bound_uid = item.get('sec_uid') or '', bindings.get(aid, '')
+        conflict = bool(cached_uid and bound_uid and cached_uid != bound_uid)
+        uid = '' if conflict else cached_uid or bound_uid
+        item['account_identity_conflict'] = conflict
+        if uid:
+            item['sec_uid'] = uid
+        account = accounts.get(uid)
+        item['account_monitor'] = {'sec_uid': uid, 'enabled': bool(account['enabled'])} if account else None
+    return items
+
+
+def monitor_account(data):
+    """One click: add a cached identity, or resolve one video through the queue."""
+    if not isinstance(data, dict) or set(data) - {'aweme_id', 'resolve_only'} or not isinstance(data.get('resolve_only', False), bool) or not re.fullmatch(r'\d{10,25}', str(data.get('aweme_id', ''))):
+        raise ValueError('请选择已收录作品的作者')
+    aid = str(data['aweme_id'])
+    init()
+    with LOCK:
+        rows = store.q("SELECT value_json FROM discovery_sightings WHERE kind='works' AND item_id=? ORDER BY observed_at DESC LIMIT 1", (aid,))
+        if rows:
+            item = json.loads(rows[0]['value_json'])
+        else:
+            ref = next((r for r in creative.REFERENCES if r.get('aweme_id') == aid), None)
+            if not ref:
+                raise ValueError('尚未收录这条作品，请先采集')
+            item = {'id': aid}
+        item['id'] = aid
+        account_states([item])
+        if item['account_identity_conflict']:
+            raise ValueError('作品的作者身份不一致，请核实后再添加')
+        uid = item.get('sec_uid') or ''
+        if uid:
+            if not re.fullmatch(r'[A-Za-z0-9_=-]{12,}', uid):
+                raise ValueError('缓存作者 ID 无效，未添加账号')
+            with store._LOCK, store.get_conn() as conn:
+                before = conn.execute('SELECT * FROM tracked_accounts WHERE sec_uid=?', (uid,)).fetchone()
+                conn.execute('''INSERT INTO tracked_accounts(sec_uid,profile_url,nickname,avatar_path,follower_count,role,enabled,created_at)
+                    VALUES(?,?,?,?,?,'peer',1,?) ON CONFLICT(sec_uid) DO UPDATE SET enabled=1''',
+                    (uid, 'https://www.douyin.com/user/'+uid, item.get('account_name') or '',
+                     item.get('avatar_path') or item.get('avatar_url'), item.get('fans'), store.now_str()))
+            account = store.q('SELECT sec_uid,nickname,role,enabled FROM tracked_accounts WHERE sec_uid=?', (uid,))[0]
+            return {'account': account, 'created': before is None, 'resumed': bool(before and not before['enabled']), 'job': None}
+        if data.get('resolve_only'):
+            raise ValueError('作者核实结果尚未保存，请到采集中心查看任务')
+        # Reuse a pending identity lookup instead of charging for a double click.
+        for job in douk.jobs():
+            if job.get('endpoint') != 'discovery' or job['status'] not in {'queued', 'running'}:
+                continue
+            request = douk.read(douk.metadata(job['id']).parent/'request.json', {})
+            query = request.get('query') or {}
+            if query.get('source') == 'monitor' and query.get('aweme_ids') == [aid]:
+                return {'job': job, 'account': None}
+        query = {'source': 'monitor', 'aweme_id': aid}
+        preview = d.plan(query)
+        if not preview['allowed']:
+            raise ValueError(preview['reason'])
+        if preview['calls'] != 1:
+            raise ValueError('账号快捷添加只允许核实一条作品')
+        return {'job': d.submit({**query, 'confirmed': True, 'fingerprint': preview['fingerprint']}), 'account': None}
 
 
 def library(data=None, export_all=False):
@@ -481,7 +550,9 @@ def reports(identity=None):
         rows = store.q('SELECT payload_json FROM discovery_reports WHERE id=?', (str(identity),))
         if not rows:
             raise ValueError('报告不存在')
-        return json.loads(rows[0]['payload_json'])
+        payload = json.loads(rows[0]['payload_json'])
+        account_states(payload.get('references', []) + [r['work'] for r in payload.get('opportunities', [])])
+        return payload
     return {'items': store.q('SELECT id,kind,start_at,end_at,generated_at FROM discovery_reports ORDER BY generated_at DESC LIMIT 120')}
 
 

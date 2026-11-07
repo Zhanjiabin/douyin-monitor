@@ -522,6 +522,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(discovery.plan(data))
             if path.startswith('/api/discovery/hub/'):
                 import discovery_hub as hub
+                if path.endswith('/monitor-account'):
+                    return self._json(hub.monitor_account(data))
                 if path.endswith('/automation'):
                     return self._json(hub.save_config(data))
                 if path.endswith('/sync-plan'):

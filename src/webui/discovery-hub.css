@@ -64,3 +64,5 @@ body.discovery-hub{height:100dvh;overflow:hidden}
 .hub-plan-list small{display:block;color:var(--hub-secondary);font-size:11px;margin-top:5px}
 .hub-plan-list>.hub-caption{padding:14px 0}
 .hub-general-plan{margin-top:24px;border-top:1px solid var(--hub-line);padding-top:18px}
+
+.hub-author-cell .hub-account-monitor{display:block;margin-top:6px;font-size:11px}.hub-account-monitor:disabled{color:var(--theme-muted,#8a9aa6);cursor:default}.hub-account-monitor[aria-busy=true]{cursor:wait}
