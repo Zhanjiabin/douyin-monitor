@@ -249,6 +249,26 @@ class RadarTests(unittest.TestCase):
         for title in ['《纸村》第1集 #AIGC #中式恐怖', '《火星来信》 #AI原创电影', '海底归来 #AI科幻大片']:
             self.assertIn('cinema', creative.classify({'title': title})['lanes'])
 
+    def test_repeated_promotional_tags_do_not_become_ip_keywords(self):
+        self.seed(2, title='【商城补贴】故事开始 #AI漫剧 #商城补贴 #漫剧推荐 #原创动画 #模仿 #本作品使用LibTV制作',
+                  account_name='故事作者', avatar_url='https://example.com/same.jpg')
+        items=radar.works()
+        for row in items:
+            self.assertFalse(radar.names(row))
+        self.assertTrue(all(k['origin']=='方向词' for k in radar.keyword_pool(items,radar.config())))
+
+    def test_ready_first_and_explicit_coverage_filters(self):
+        self.seed(4)
+        radar.save_detail(self.detail(),self.aid,radar.stamp(),'ready-detail')
+        mh.record({'aweme_id':self.aid,'play_count':120000},source='tikhub_app',scope='organic',observed_at=radar.stamp(),event_key='ready-play')
+        self.assertEqual(hub.library({'sort':'quality'})['items'][0]['id'],self.aid)
+        self.assertEqual(hub.library({'data_status':'available'})['total'],1)
+        self.assertEqual(hub.library({'data_status':'pending'})['total'],3)
+        radar.pin({'id':self.aid,'enabled':True})
+        self.assertEqual(hub.library({'data_status':'watching'})['items'][0]['id'],self.aid)
+        radar.pin({'id':self.aid,'enabled':False})
+        self.assertEqual(hub.library({'data_status':'watching'})['total'],0)
+
 
 if __name__ == '__main__':
     unittest.main()

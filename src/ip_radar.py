@@ -29,7 +29,7 @@ DEFAULTS = {
     'enabled': False, 'interval_hours': 6, 'recent_days': 14,
     'refresh_hours': 12, 'watch_limit': 12, 'cycle_calls': 5,
     'daily_calls': 30, 'expand_keywords': True,
-    'keywords': ['AI漫剧', 'AI真人短剧', 'AI萌宠', 'AI原创电影',
+    'keywords': ['AI漫剧', 'AI真人短剧', 'AI萌宠', 'AI电影',
                  '悬疑漫剧', 'AI短剧', 'AI动物故事', 'AI中式恐怖',
                  '末日漫剧', 'AI剧情短片', 'AI猫咪连续剧', 'AI科幻短片'],
     'revision': '', 'enabled_at': '',
@@ -114,6 +114,10 @@ def clean_name(value):
     name = re.sub(r'\s+', '', value).strip('《》【】「」『』<>：:·-—_#，,。.！!？?')
     name = re.split(r'第[零一二三四五六七八九十百两\d]+[季集话章]|[Ee][Pp]\.?\d+|合集\d*', name)[0]
     name = name.strip('：:·-—_')
+    if name in {'商城补贴', '原创动画', '漫剧推荐', '视频同款', '工具推荐'}:
+        return ''
+    if name.startswith(('本作品', '本视频', '点击', '欢迎', '关注')):
+        return ''
     return name if 2 <= len(name) <= 24 and not GENERIC.fullmatch(name) else ''
 
 
@@ -135,7 +139,7 @@ def names(item):
             result.append((candidate, '分集标题'))
     for value in re.findall(r'#([^\s#@，,。!！?？|｜]{2,32})', title):
         name = clean_name(value)
-        if name and not re.search(r'喊话|复刻|卡点|同款|唱歌|创作|生成|制作|模型', name, re.I):
+        if name and not re.search(r'喊话|复刻|卡点|同款|唱歌|创作|生成|制作|模型|推荐|补贴|优惠|模仿|原创动画|新星|热门', name, re.I):
             result.append((name, '作品标签'))
     return list(dict.fromkeys(result))
 
@@ -194,6 +198,7 @@ def overlay(items, until=None):
         if r['target'] in ids and (not limit or r['created_at'] < limit):
             attempts[r['target']] = r
     pinned = {r['aweme_id'] for r in store.q('SELECT aweme_id FROM radar_pins WHERE enabled=1')}
+    watched = {r['aweme_id'] for r in store.q('SELECT aweme_id FROM radar_auto_watch WHERE expires_at>?', (stamp(),))}
     for item in items:
         aid = str(item.get('id') or item.get('aweme_id') or '')
         field_meta = {k: {'source': item.get('source', 'search'), 'scope': 'search_or_board_snapshot',
@@ -221,6 +226,7 @@ def overlay(items, until=None):
         attempt = attempts.get(aid)
         item['last_statistics_attempt'] = attempt
         item['radar_pinned'] = aid in pinned
+        item['radar_watching'] = aid in pinned or aid in watched
         item['play_status'] = 'available' if item.get('play_count') is not None else 'failed' if attempt and attempt['status'] == 'failed' else 'not_returned' if attempt and attempt['status'] == 'completed' else 'pending'
     return items
 
@@ -305,7 +311,7 @@ def groups(items=None, now=None):
                        'representative': best, 'latest': ordered[:3], 'member_ids': [r['id'] for r in ordered],
                        'score': potential(best, now), 'account_monitor': best.get('account_monitor')})
     return sorted(result, key=lambda r: (r['state'] != 'classic', r['peak_daily_growth'] is not None,
-                                         r['peak_daily_growth'] or 0, r['score']), reverse=True)
+                                         r['peak_daily_growth'] or 0, r['state'] == 'baseline', r['score']), reverse=True)
 
 
 def library(data=None):
@@ -335,7 +341,9 @@ def keyword_pool(items, cfg):
     if cfg['expand_keywords']:
         # Only repeat evidence from at least two works, not every stray hashtag.
         candidates = [g for g in groups(items) if g['works'] >= 2 and g['recent_works'] and
-                      g['evidence'] != '作者创作线索' and g['kind'] != 'commentary']
+                      (g['evidence'] in {'合集名称', '标题剧名', '分集标题'} or
+                       g['evidence'] == '作品标签' and clean_name(g['name']) == clean_name(g['account_name'] or '')) and
+                      g['kind'] != 'commentary']
         known = {r['keyword'].casefold() for r in pool}
         for g in candidates:
             if g['name'].casefold() not in known:

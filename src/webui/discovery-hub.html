@@ -8,10 +8,11 @@
 <form id="hubFilters" class="hub-filters">
 <input name="keyword" aria-label="关键词" placeholder="搜索标题、作者、作品 ID" maxlength="120">
 <select name="focus" aria-label="创作方向"><option value="ai">全部 AI 方向</option><option value="comic">AI 漫剧</option><option value="drama">AI 短剧</option><option value="pet">AI 萌宠 IP</option><option value="cinema">AI 大片</option><option value="all">全部已存内容</option></select>
+<select name="data_status" aria-label="数据状态"><option value="all">全部作品</option><option value="available">有播放数据</option><option value="pending">待补采作品</option><option value="watching">重点追踪作品</option></select>
 <select name="source" aria-label="榜单来源"><option value="">全部榜单</option></select>
 <select name="category" aria-label="采集分类"><option value="">全部采集分类</option></select>
 <select name="days" aria-label="发布时间"><option value="0">全部发布时间</option><option value="1">近一天发布</option><option value="7">近七天发布</option><option value="14">近十四天发布</option><option value="30">近三十天发布</option></select>
-<select name="sort" aria-label="排序"><option value="new">最新发布</option><option value="seen">最近收录</option><option value="video_plays">作品播放</option><option value="likes">点赞</option><option value="comments">评论</option><option value="saves">收藏</option><option value="shares">分享</option><option value="updated">数据更新</option><option value="fans">粉丝</option><option value="author">作者</option><option value="title">标题</option><option value="plays">榜单窗口播放</option><option value="rank">榜内排名</option><option value="rising">排名上升</option><option value="heat">热度</option></select>
+<select name="sort" aria-label="排序"><option value="quality">补采优先</option><option value="new">最新发布</option><option value="seen">最近收录</option><option value="video_plays">作品播放</option><option value="likes">点赞</option><option value="comments">评论</option><option value="saves">收藏</option><option value="shares">分享</option><option value="updated">数据更新</option><option value="fans">粉丝</option><option value="author">作者</option><option value="title">标题</option><option value="plays">榜单窗口播放</option><option value="rank">榜内排名</option><option value="rising">排名上升</option><option value="heat">热度</option></select>
 <button class="btn primary" type="submit">搜索</button><button class="btn" type="reset">重置</button>
 </form>
 <section id="hubLibraryView">

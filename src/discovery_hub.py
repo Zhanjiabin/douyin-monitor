@@ -380,6 +380,13 @@ def library(data=None, export_all=False):
     for row in rows:
         row['creative'] = creative.classify(row)
     rows = [row for row in rows if creative.matches(row, focus)]
+    data_status = data.get('data_status', 'all')
+    if data_status not in {'all', 'available', 'pending', 'watching'}:
+        raise ValueError('数据状态无效')
+    if data_status != 'all':
+        rows = [r for r in rows if (data_status == 'available' and r.get('play_count') is not None) or
+                (data_status == 'pending' and r.get('play_count') is None) or
+                (data_status == 'watching' and r.get('radar_watching'))]
     word = str(data.get('keyword') or '').strip().casefold()
     if len(word) > 120:
         raise ValueError('搜索关键词过长')
@@ -393,7 +400,10 @@ def library(data=None, export_all=False):
         maximum = d.integer(data['max_fans'], 0, 1000000000, '粉丝上限')
         rows = [r for r in rows if r.get('fans') is not None and r['fans'] <= maximum]
     sort = data.get('sort', 'seen')
-    if sort == 'rank':
+    if sort == 'quality':
+        rows.sort(key=lambda r: (r.get('play_count') is not None, r.get('detail_updated_at') is not None,
+                                  r.get('play_count') or 0, r.get('digg_count') or 0), reverse=True)
+    elif sort == 'rank':
         # Numeric rank belongs to one board; do not present unlike ranks as a global rank.
         rows.sort(key=lambda r: (r.get('source', ''), r.get('rank') if r.get('rank') is not None else float('inf')))
     else:

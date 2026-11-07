@@ -9,10 +9,10 @@
   const image=(url,cls='')=>url?`<img class="${cls}" src="${esc(url)}" loading="lazy" alt="" referrerpolicy="no-referrer">`:`<span class="hub-cover-empty ${cls}">影</span>`;
   const duration=n=>n==null?'':Math.floor(n/60)+':'+String(Math.round(n)%60).padStart(2,'0');
   const pct=n=>n==null?'—':(n*100).toFixed(n<.001?3:2)+'%';
-  const saved={};try{Object.assign(saved,JSON.parse(sessionStorage.getItem('gc-hub-creative-v1')||'{}'));}catch{}
+  const saved={};try{Object.assign(saved,JSON.parse(sessionStorage.getItem('gc-hub-radar-v2')||'{}'));}catch{}
   function values(){return {...Object.fromEntries(new FormData(form)),kind:view==='pulse'?'hot':'works'};}
-  function persist(){if(['library','pulse'].includes(view)&&Object.keys(applied).length){saved[view]={draft:values(),applied:{...applied},size};sessionStorage.setItem('gc-hub-creative-v1',JSON.stringify(saved));}}
-  function defaults(){for(const key of ['keyword','source','category'])form.elements[key].value='';form.elements.focus.value='ai';form.elements.days.value='14';form.elements.sort.value=view==='pulse'?'rank':'likes';}
+  function persist(){if(['library','pulse'].includes(view)&&Object.keys(applied).length){saved[view]={draft:values(),applied:{...applied},size};sessionStorage.setItem('gc-hub-radar-v2',JSON.stringify(saved));}}
+  function defaults(){for(const key of ['keyword','source','category'])form.elements[key].value='';form.elements.focus.value='ai';form.elements.data_status.value='all';form.elements.days.value='14';form.elements.sort.value=view==='pulse'?'rank':'quality';}
   function setDirty(){dirty=true;persist();$('#hubFeedback').textContent='条件已修改，点击搜索后生效';A.invalidateQuote($('#hubQuote'));}
   function badges(r,rank=true){return (r.creative?.labels||[]).map(label=>`<span class="hub-tag green">${esc(label)}</span>`).join('')+(r.boards||[]).map(b=>`<span class="hub-tag">${esc(b.title)}${rank&&b.rank!=null?' #'+fmt(b.rank):''}</span>`).join('');}
   function change(r){const n=r.comparison?.rank_change;return n==null?'<small>待积累对照</small>':`<small class="${n>0?'hub-up':n<0?'hub-down':'hub-muted'}">${n>0?'↑ '+n:n<0?'↓ '+Math.abs(n):'持平'}</small>`;}
@@ -91,7 +91,7 @@
     if(view==='references'){renderReferences();await window.IpRadar.load();return;}
     const section=view==='pulse'?'hot':'works';form.elements.source.innerHTML='<option value="">全部榜单</option>'+catalog.sources.filter(s=>s.section===section&&!['native','native_hot'].includes(s.id)).map(s=>`<option value="${s.id}">${esc(s.title)}</option>`).join('');
     defaults();const old=saved[view];if(old?.draft)for(const [k,v] of Object.entries(old.draft))if(form.elements[k])form.elements[k].value=v;
-    form.elements.days.hidden=view==='pulse';form.elements.category.hidden=view==='pulse';form.elements.keyword.placeholder=view==='pulse'?'搜索已收录的热点':'搜索标题、作者、作品 ID';
+    form.elements.days.hidden=view==='pulse';form.elements.source.hidden=view!=='pulse';form.elements.data_status.hidden=view==='pulse';form.elements.category.hidden=true;form.elements.keyword.placeholder=view==='pulse'?'搜索已收录的热点':'搜索标题、作者、作品 ID';
     applied=old?.applied||values();dirty=!!old&&JSON.stringify(values())!==JSON.stringify({...values(),...applied});page=0;size=old?.size||20;selected.clear();$('#hubFeedback').textContent=dirty?'条件已修改，点击搜索后生效':'读取已保存数据…';await load();
   }
   form.onsubmit=e=>{e.preventDefault();search();};form.onreset=e=>{if(resetting)return;e.preventDefault();defaults();search();};form.addEventListener('input',setDirty);form.addEventListener('change',setDirty);
