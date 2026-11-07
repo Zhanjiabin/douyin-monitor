@@ -269,6 +269,12 @@ class RadarTests(unittest.TestCase):
         radar.pin({'id':self.aid,'enabled':False})
         self.assertEqual(hub.library({'data_status':'watching'})['total'],0)
 
+    def test_detail_profile_placeholder_preserves_known_search_fans(self):
+        self.seed(1,fans=17800)
+        response=self.detail();response['data']['aweme_detail']['author']['follower_count']=0
+        radar.save_detail(response,self.aid,radar.stamp(),'profile-placeholder')
+        self.assertEqual(hub.library()['items'][0]['fans'],17800)
+
 
 if __name__ == '__main__':
     unittest.main()

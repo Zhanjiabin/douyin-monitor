@@ -208,6 +208,8 @@ def overlay(items, until=None):
         if detail:
             value = json.loads(detail['value'])
             for key in ('title', 'sec_uid', 'account_name', 'fans', 'avatar_url', 'cover_url', 'avatar_path', 'cover_path', 'duration', 'published_at', 'mix_id', 'mix_name'):
+                if key == 'fans' and not value.get(key):
+                    continue  # App detail often returns 0 as a profile placeholder.
                 if value.get(key) not in (None, ''):
                     item[key] = value[key]
             item['identity_verified'] = bool(value.get('sec_uid'))
@@ -495,7 +497,7 @@ def save_detail(body, aid, observed_at, event_key):
     previous = store.q('SELECT value FROM radar_details WHERE aweme_id=? ORDER BY observed_at DESC LIMIT 1', (aid,))
     if previous and json.loads(previous[0]['value']).get('sec_uid') != uid:
         raise ValueError('作品作者身份发生冲突，未覆盖原身份')
-    value.update(account_name=value.pop('author_name'), fans=d.number(author.get('follower_count')),
+    value.update(account_name=value.pop('author_name'), fans=d.number(author.get('follower_count')) or None,
                  published_at=d.published(value.get('create_time')),
                  duration=d.number((detail.get('video') or {}).get('duration')))
     if value['duration'] is not None:
