@@ -14,6 +14,17 @@ def media_path(name):
     return MEDIA_DIR / name if SAFE_NAME.fullmatch(name) else None
 
 
+def cached_image(url):
+    """Resolve an already saved image without starting a download."""
+    if not url or not isinstance(url, str):
+        return None
+    key = hashlib.sha256(url.encode()).hexdigest()
+    for ext in ('jpg', 'png', 'webp'):
+        if (MEDIA_DIR / f'{key}.{ext}').is_file():
+            return f'/media/{key}.{ext}'
+    return None
+
+
 def cache_image(url):
     if not url:
         return None
@@ -23,9 +34,9 @@ def cache_image(url):
         return None
     key = hashlib.sha256(url.encode()).hexdigest()
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-    for ext in ("jpg", "png", "webp"):
-        if (MEDIA_DIR / f"{key}.{ext}").is_file():
-            return f"/media/{key}.{ext}"
+    saved = cached_image(url)
+    if saved:
+        return saved
     try:
         with requests.get(url, timeout=(5, 10), stream=True, allow_redirects=False) as response:
             if response.status_code != 200:

@@ -16,6 +16,7 @@ import playback
 import store
 import tikhub
 import creative_focus as creative
+from media_cache import cached_image
 
 LOCK = threading.RLock()
 PRICE_DATE = '2026-11-04'
@@ -278,6 +279,10 @@ def decorate(observations):
                                   'heat_change': delta('heat'), 'heat_percent': round(delta('heat') / before['heat'] * 100, 1) if delta('heat') is not None and before.get('heat') else None,
                                   'board_play_change': delta('board_play_count')}
         item['observations'] = len(rows)
+        for field in ('cover', 'avatar'):
+            saved = cached_image(item.get(field+'_url'))
+            if saved:
+                item[field+'_path'] = saved
         entries.append(item)
     return entries
 

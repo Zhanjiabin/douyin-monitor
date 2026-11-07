@@ -15,19 +15,22 @@ import douk
 import playback
 import store
 import tikhub
+import media_cache
 
 
 class ClassificationTests(unittest.TestCase):
     def test_four_lanes_and_named_ips(self):
         for title, lane in [('主角终于发现真相 #AI漫剧', 'comic'), ('扮丑嫁良缘 #真人AIGC #AI短剧', 'drama'),
                             ('云咪vlog #AI创作 #ai小猫', 'pet'), ('渡骸 第一集', 'cinema'),
-                            ('南僵 第四集', 'cinema'), ('山海奇遇 #AI原创电影', 'cinema')]:
+                            ('南僵 第四集', 'cinema'), ('《南僵》第四集', 'cinema'), ('南僵第四集', 'cinema'),
+                            ('山海奇遇 #AI原创电影', 'cinema')]:
             with self.subTest(title=title):
                 self.assertIn(lane, creative.classify({'title': title})['lanes'])
 
     def test_general_news_pets_tutorials_and_query_context_do_not_become_ai_content(self):
         for title in ['猫咪好可爱 #萌宠', '假期出行人山人海', '热门短剧推荐 婆媳大战',
-                      'AI电影保姆级教程', 'AI萌宠提示词和工作流', 'Seedance工具测评', 'AI工具发布会']:
+                      'AI电影保姆级教程', 'AI萌宠提示词和工作流', 'Seedance工具测评', 'AI工具发布会',
+                      '云南僵蚕 #干货批发', '湖南僵尸村民间故事', '越南僵尸王复仇', '奶猫真可爱']:
             item = {'title': title, 'category': '动漫', 'query': {'keyword': 'AI萌宠'}, 'account_name': 'AI导演'}
             with self.subTest(title=title):
                 self.assertFalse(creative.matches(item, 'ai'))
@@ -110,6 +113,27 @@ class FocusedLibraryTests(unittest.TestCase):
             output = hub.export_report(focused['id']).decode()
             self.assertIn('南僵', output); self.assertNotIn('房产营销', output); self.assertNotIn('提示词教程', output)
         self.assertFalse(store.q('SELECT * FROM tracked_accounts'))
+
+    def test_large_search_is_durable_before_bounded_optional_thumbnail_io(self):
+        playback.save_settings({'api_key': 'fixture-only', 'max_calls_per_job': 5, 'daily_call_limit': 100})
+        query = {'source': 'search', 'keyword': 'AI漫剧', 'days': 7}
+        preview = d.plan(query)
+        self.assertTrue(preview['allowed'], preview['reason'])
+        works = [{'id': str(7703151458754000000+i), 'aweme_id': str(7703151458754000000+i),
+                  'title': '第1集 #AI漫剧', 'cover_url': f'https://p.douyinpic.com/{i}.jpg',
+                  'avatar_url': f'https://p.douyinpic.com/avatar-{i}.jpg'} for i in range(1000)]
+        def images(urls):
+            self.assertLessEqual(len(urls), 24)
+            self.assertEqual(hub.library({'focus': 'ai'})['total'], 1000)
+            self.assertEqual(store.q('SELECT COUNT(*) n FROM discovery_works')[0]['n'], 1000)
+            raise OSError('optional thumbnail filesystem failure')
+        with patch.object(tikhub.requests, 'request', side_effect=AssertionError('No live API')), \
+             patch.object(tikhub, 'execute', return_value={'attempted': 1, 'receipts': [{'ok': True, 'response': {}}], 'errors': []}), \
+             patch.object(d, 'normalize', return_value={'items': works, 'series': [], 'raw_data': {}}), \
+             patch.object(media_cache, 'cache_images', side_effect=images) as thumbnails:
+            result = d.execute({'query': query, 'confirmed': True, 'fingerprint': preview['fingerprint']})
+        self.assertTrue(result['ok']); self.assertEqual(len(result['data']), 1000)
+        thumbnails.assert_called_once()
 
 
 if __name__ == '__main__':

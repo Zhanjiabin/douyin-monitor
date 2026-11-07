@@ -479,14 +479,9 @@ def execute(request,progress=lambda _:None,cancelled=lambda:False):
     timestamp=now().isoformat()
     for item in items:item['fetched_at']=timestamp
     if SOURCES[q['source']][2]=='works' and items:
-        import shutil
-        if shutil.disk_usage(DATA_DIR).free>256*1024**2:
-            from media_cache import cache_images
-            images=cache_images([i.get(field) for i in items for field in ('cover_url','avatar_url')])
-        else:images={}
         for item in items:
-            item['cover_path']=images.get(item.get('cover_url')) or item.get('cover_url')
-            item['avatar_path']=images.get(item.get('avatar_url')) or item.get('avatar_url')
+            item['cover_path']=item.get('cover_path') or item.get('cover_url')
+            item['avatar_path']=item.get('avatar_path') or item.get('avatar_url')
             store.x('INSERT OR REPLACE INTO discovery_works VALUES(?,?,?)',(item['aweme_id'],json.dumps(item,ensure_ascii=False),timestamp))
     fresh_count=len(items)
     previous=latest(q) if p['page_start']>1 else None
@@ -508,6 +503,21 @@ def execute(request,progress=lambda _:None,cancelled=lambda:False):
         store.x('INSERT INTO discovery_snapshots VALUES(?,?,?,?,?,?,?,?)',(snapshot_id,key(q),q['source'],json.dumps(q,ensure_ascii=False),json.dumps(payload,ensure_ascii=False),timestamp,'partial' if errors else 'completed',request.get('job_id','')))
         import discovery_hub
         discovery_hub.ingest(snapshot_id)
+        # Search V3 can return 1,000 works in a single paid response. Persist
+        # every record before optional image I/O; never download 2,000 images
+        # on the collection queue. The rest retain the provider's image URLs.
+        if SOURCES[q['source']][2]=='works' and not was_cancelled:
+            import shutil
+            from media_cache import cache_images
+            if shutil.disk_usage(DATA_DIR).free>256*1024**2:
+                progress({'done':attempted,'total':p['calls'],'count':len(items),'phase':'saved'})
+                try:
+                    images=cache_images([i.get(field) for i in items[:12] for field in ('cover_url','avatar_url')])
+                    for item in items[:12]:
+                        item['cover_path']=images.get(item.get('cover_url')) or item.get('cover_path')
+                        item['avatar_path']=images.get(item.get('avatar_url')) or item.get('avatar_path')
+                except OSError:
+                    pass  # Optional thumbnails cannot invalidate saved data.
     saved=f'{len(series)} 组指标' if series else f'{len(items)} 条结果'
     return {'ok':ok,'data':items,'errors':errors,'receipts':receipts,'attempted':attempted,'requested':p['calls'],
             'query':q,'cancelled':was_cancelled,'message':('已取消；已完成的请求仍已保存' if was_cancelled else

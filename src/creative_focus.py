@@ -36,6 +36,7 @@ REFERENCES = [
 
 TUTORIAL = re.compile(r'教程|教学|工作流|提示词|保姆级|训练模型|工具测评|工具评测|AI工具|模型测评|卖课|课程|招学员|软件安装|一键生成工具', re.I)
 AI = re.compile(r'\bai\b|aigc|人工智能|seedance|seko|可灵|即梦|豆包', re.I)
+SERIES = re.compile(r'(?<!\w)(?:渡骸|南僵)(?=$|\W|第[一二三四五六七八九十百\d])')
 
 
 def validate(value):
@@ -56,9 +57,9 @@ def classify(item):
         found.append('comic')
     if has_ai and re.search(r'短剧|真人|剧集', title) and 'comic' not in found:
         found.append('drama')
-    if (has_ai and re.search(r'萌宠|宠物|小猫|猫咪|小狗|拟人动物|动物拟人|哈基米|萌萌|治愈系猫', title)) or re.search(r'猫子柒|云咪|juju某猪|奶猫|奶鼠|奶猴', title, re.I):
+    if (has_ai and re.search(r'萌宠|宠物|小猫|猫咪|小狗|奶猫|奶鼠|拟人动物|动物拟人|哈基米|萌萌|治愈系猫', title)) or re.search(r'猫子柒|云咪|juju某猪', title, re.I):
         found.append('pet')
-    if re.search(r'渡骸|南僵', title) or (has_ai and re.search(r'大片|电影|影视|中式恐怖|科幻短片|奇幻短片|史诗|世界观', title)):
+    if SERIES.search(title) or (has_ai and re.search(r'大片|电影|影视|中式恐怖|科幻短片|奇幻短片|史诗|世界观', title)):
         found.append('cinema')
     if not found and has_ai and re.search(r'短片|原创动画|原创故事|原创视频|AI视频|AI创作|AI原创|脑洞', title, re.I):
         found.append('other')
