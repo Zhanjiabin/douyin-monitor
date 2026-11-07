@@ -245,6 +245,9 @@ class Handler(BaseHTTPRequestHandler):
                 args = parse_qs(urlparse(self.path).query)
                 try:
                     query = json.loads(args.get('query', ['{}'])[0])
+                    if path.endswith('/focus'):
+                        import creative_focus
+                        return self._json(creative_focus.catalog())
                     if path.endswith('/library'):
                         return self._json(hub.library(query))
                     if path.endswith('/history'):

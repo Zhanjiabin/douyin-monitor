@@ -16,9 +16,10 @@ import app,corpus,discovery as d,discovery_hub as hub,douk,media_cache,playback,
 
 OUT=ROOT/'output/discovery-hub-ui';OUT.mkdir(exist_ok=True)
 errors=[];submitted=[];jobs=[]
-captions=['假如一座未来城市突然失去颜色，机器人要怎么找回来 #AI短片 #原创动画',
-          '没想到最后出门的人竟然是它，一分钟看完这个反转 #AI视频 #脑洞',
-          '如何用AI制作电影感的角色动画，完整过程与镜头设计 #AI教程 #原创动画']
+captions=['假如一座未来城市突然失去颜色，机器人要怎么找回来 #AI漫剧',
+          '没想到最后出门的人竟然是它 #AI真人短剧',
+          '猫子柒的小猫咖啡馆开张了 #AI萌宠',
+          '南僵 第三集 消失的城市 #AI剧情大片']
 at=d.now()-timedelta(minutes=10)
 covers=['/media/'+p.name for p in list(media_cache.MEDIA_DIR.glob('*'))[:30] if p.suffix in {'.jpg','.png','.webp'}]
 
@@ -33,6 +34,8 @@ def fake_submit(req):
     submitted.append(req)
     job={'id':uuid.uuid4().hex[:16],'title':req.get('title','测试同步'),'status':'completed','created_at':at.isoformat(),'count':20}
     jobs.append(job)
+    meta=douk.metadata(job['id']);meta.parent.mkdir(parents=True,exist_ok=True)
+    meta.write_text(json.dumps(job),encoding='utf-8')
     return job
 
 
@@ -68,15 +71,16 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
     temp=Path(temp);store.DB_PATH=temp/'test.db';store._CONN=None;playback.SETTINGS=temp/'api.json';douk.JOBS=temp/'jobs'
     store.init_db();playback.init();corpus.init();hub.init()
     playback.save_settings({'api_key':'fixture-only','max_calls_per_job':5,'daily_call_limit':100})
-    works=[{'id':str(7703151458754472787+i),'aweme_id':str(7703151458754472787+i),'title':captions[i%3]+f' 第{i+1}篇',
+    works=[{'id':str(7703151458754472787+i),'aweme_id':str(7703151458754472787+i),'title':captions[i%4]+f' 第{i+1}篇',
             'source':'video_total','cover_path':covers[i%len(covers)] if covers else '',
             'account_name':['光影实验室','未来放映室','AI故事制造'][i%3],'fans':8500+i*180,'rank':i+1,
             'board_play_count':2300000-i*23000,'digg_count':63000-i*317,'follow_count':500+i,
             'like_rate':.0274,'follow_rate':.0019,'index':139000-i*100,'duration':87,
             'published_at':(at-timedelta(hours=i+3)).isoformat(),'url':'https://www.douyin.com/video/'+str(7703151458754472787+i)} for i in range(61)]
-    seed('video_total',works,at-timedelta(hours=9),categories=['643'])
+    noise=[{'id':'noise'+str(i),'title':title,'digg_count':99999999} for i,title in enumerate(['AI电影制作教程','本地买房营销','家里猫咪真可爱'])]
+    seed('video_total',works+noise,at-timedelta(hours=9),categories=['643'])
     seed('video_total',[{**r,'rank':max(1,r['rank']-2)} for r in works],at,categories=['643'])
-    hot=[{'id':f'topic-{i}','title':['AI电影角色走进现实','机器人舞蹈挑战火了','电影里的未来城市','猫咪也有隐藏超能力'][i%4]+f' {i+1}',
+    hot=[{'id':f'topic-{i}','title':['AI电影角色走进现实','南僵新一集开播','AI漫剧里的未来城市','AI萌宠也有隐藏超能力'][i%4]+f' {i+1}',
           'source':'hot_total','category':'科技','allow_publish':True,'rank':i+6,'heat':5300000-i*30000,'publish_count':1600-i*5,
           'trend':[{'datetime':(at-timedelta(days=j)).date().isoformat(),'hot_score':1000000+j*100000} for j in [3,2,1,0]]} for i in range(48)]
     seed('hot_live',hot,at-timedelta(hours=8))
@@ -91,6 +95,14 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             assert page.locator('#appNavigation a.is-active').inner_text()=='发现'
             assert page.locator('#hubPager [data-pager-total]').inner_text()=='共 61 条作品'
             assert page.locator('#hubTable tbody tr').count()==20
+            assert '教程' not in page.locator('#hubTable tbody').inner_text()
+            assert page.locator('#hubFilters select[name=focus]').input_value()=='ai'
+            page.select_option('#hubFilters select[name=focus]','pet')
+            assert page.locator('#hubTable tbody tr').count()==20,'changing direction must wait for Search'
+            page.click('#hubFilters button[type=submit]')
+            page.wait_for_function("document.querySelector('#hubPager [data-pager-total]').textContent==='共 15 条作品'")
+            page.click('#hubFilters button[type=reset]')
+            page.wait_for_function("document.querySelector('#hubPager [data-pager-total]').textContent==='共 61 条作品'")
             assert page.locator('.stats').count()==0
             for width,height in [(1580,1020),(1900,900),(1366,768),(950,500)]:
                 page.set_viewport_size({'width':width,'height':height})
@@ -112,7 +124,7 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             assert page.locator('dialog[open]').count()==1
             page.screenshot(path=str(OUT/'work-detail.png'),full_page=True)
             page.click('#hubDetail [data-hub-close]')
-            page.click('[data-hub-view=pulse]');page.wait_for_selector('#hubTable [data-kind=hot]')
+            page.goto(base+'/discover#pulse');page.wait_for_selector('#hubTable [data-kind=hot]')
             check_fixed_frame(page)
             page.screenshot(path=str(OUT/'hot-desktop.png'),full_page=True)
             page.locator('#hubTable [data-hub-detail]').first.click();page.wait_for_selector('#hubDetail[open] svg')
@@ -123,41 +135,74 @@ with tempfile.TemporaryDirectory(prefix='discovery-hub-browser-') as temp:
             assert page.locator('#hubFilters input[name=keyword]').input_value()==word
             assert '条件已修改' in page.locator('#hubFeedback').inner_text()
             page.click('#hubFilters button[type=reset]');page.wait_for_selector('#hubTable [data-kind=works]')
+            page.click('[data-hub-view=references]');page.wait_for_selector('.hub-reference-card')
+            assert page.locator('.hub-reference-card').count()==4
+            assert '渡骸' in page.locator('#hubReferencesView').inner_text()
+            page.locator('[data-creative-reference="0"]').click()
+            page.wait_for_selector('#hubCreative[open]')
+            assert page.locator('#hubCreativeForm input[name=keyword]').input_value()=='渡骸'
+            assert not submitted,'reference selection must not spend requests'
+            page.click('#hubCreativeForm button[type=submit]')
+            page.wait_for_selector('#hubCreativeQuote [data-confirm]:not([disabled])')
+            assert not submitted,'a quote must not execute the query'
+            page.fill('#hubCreativeForm input[name=keyword]','南僵')
+            assert not page.locator('#hubCreativeQuote').is_visible(),'editing must invalidate the quote'
+            page.click('#hubCreativeForm button[type=submit]')
+            page.wait_for_selector('#hubCreativeQuote [data-confirm]:not([disabled])')
+            page.click('#hubCreativeQuote [data-confirm]')
+            page.wait_for_function("document.querySelector('#hubCreativeQuote').textContent.includes('抓取完成')")
+            assert submitted[-1]['query']['source']=='search' and submitted[-1]['query']['keyword']=='南僵'
+            assert submitted[-1]['pages']==1
+            page.click('#hubCreative [data-hub-close]')
+            page.screenshot(path=str(OUT/'ip-references.png'),full_page=True)
+            page.click('#hubFind');page.wait_for_selector('#hubCreative[open]')
+            page.click('#hubCreativeSchedule');page.wait_for_selector('#discoveryScheduleDialog .discovery-rule-form')
+            assert not page.locator('#discoveryScheduleDialog input[name=enabled]').is_checked()
+            page.locator('#discoveryScheduleDialog .discovery-rule-form .btn.primary').click()
+            page.wait_for_selector('#discoveryScheduleDialog [data-rule-toggle]')
+            assert len(d.rules()['items'])==1 and not d.rules()['items'][0]['enabled']
+            page.click('#discoveryScheduleDialog [data-close]')
+            page.click('#hubAutomation');page.wait_for_selector('#hubSchedule [data-plan-toggle]')
+            assert 'AI漫剧' in page.locator('#hubSchedule').inner_text()
+            page.click('#hubSchedule [data-hub-close]')
             page.click('[data-hub-view=reports]');page.wait_for_selector('#hubGenerate')
             page.click('#hubGenerate');page.wait_for_selector('.hub-report-document')
-            assert page.locator('.hub-idea').count()==6
-            assert '排名上升的热点' in page.locator('#hubReportBody').inner_text()
+            assert page.locator('.hub-idea').count()==8
+            assert '优先拆解' in page.locator('#hubReportBody').inner_text()
+            assert '制作教程' not in page.locator('#hubReportBody').inner_text()
             check_fixed_frame(page,'#hubReportBody',pager=False)
             export=page.locator('#hubReportExport').get_attribute('href')
-            response=page.request.get(base+export);assert response.status==200 and 'AI电影角色' in response.text()
+            response=page.request.get(base+export);assert response.status==200 and '南僵' in response.text()
             page.screenshot(path=str(OUT/'report-desktop.png'),full_page=True)
-            page.click('#hubAutomation');page.wait_for_selector('#hubSchedule [data-save]:not([disabled])')
+            page.click('#hubAutomation');page.wait_for_selector('#hubSchedule [data-general-plan]')
+            page.click('#hubSchedule [data-general-plan]');page.wait_for_selector('#hubSchedule [data-save]:not([disabled])')
             page.locator('#hubSchedule input[name=enabled]').check()
             page.select_option('#hubSchedule select[name=pages]','3')
             page.fill('#hubSchedule input[name=times]','09:00，21:00')
             page.wait_for_function("document.querySelector('#hubSchedule [data-estimate]').textContent.includes('本轮最多 7 次')")
-            assert not submitted
+            assert len(submitted)==1
             page.screenshot(path=str(OUT/'automation.png'),full_page=True)
             page.click('#hubSchedule [data-save]');page.wait_for_selector('#hubSchedule',state='hidden')
             assert hub.config()['enabled'];assert hub.config()['times']==['09:00','21:00']
+            page.click('[data-hub-view=library]');page.wait_for_selector('#hubSync')
             page.click('#hubSync');page.wait_for_selector('#hubSchedule [data-save]:not([disabled])')
             page.select_option('#hubSchedule select[name=pages]','1')
             page.wait_for_function("document.querySelector('#hubSchedule [data-estimate]').textContent.includes('本轮最多 3 次')")
-            assert not submitted
+            assert len(submitted)==1
             page.click('#hubSchedule [data-save]');page.wait_for_selector('#hubSchedule',state='hidden')
-            assert len(submitted)==3
+            assert len(submitted)==4
             assert all('multi_video_statistics' not in str(req) for req in submitted)
             page.set_viewport_size({'width':390,'height':844});page.goto(base+'/discover');page.wait_for_selector('[data-hub-detail]')
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),'page-level overflow on mobile'
             check_fixed_frame(page)
             page.screenshot(path=str(OUT/'library-mobile.png'),full_page=True)
-            page.click('[data-hub-view=pulse]');page.wait_for_selector('#hubTable [data-kind=hot]')
+            page.goto(base+'/discover#pulse');page.wait_for_selector('#hubTable [data-kind=hot]')
             check_fixed_frame(page)
             page.click('[data-hub-view=reports]');page.wait_for_selector('.hub-report-document')
             check_fixed_frame(page,'#hubReportBody',pager=False)
             assert not errors,errors
             transport.assert_not_called()
-            print(json.dumps({'checks':'local library/search/reset/pagination, rich details/history, deliberate keyword search, evidence report/export, editable auto schedule, quoted grouped sync, fixed outer frame and internal scrolling across desktop/mobile library/hot/reports','errors':errors,'real_paid_calls':0,'mock_jobs':len(submitted)},ensure_ascii=False))
+            print(json.dumps({'checks':'four creative lanes and noise exclusion; explicit filters/reset/pagination; primary IP references; quoted TikHub keyword search with stale-quote invalidation; paused-by-default keyword schedules and plan management; scoped report/export; original board schedules; fixed desktop/mobile frames','errors':errors,'real_paid_calls':0,'mock_jobs':len(submitted)},ensure_ascii=False))
             browser.close()
     finally:
         server.shutdown();server.server_close()

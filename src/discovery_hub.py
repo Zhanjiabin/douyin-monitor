@@ -15,6 +15,7 @@ import douk
 import playback
 import store
 import tikhub
+import creative_focus as creative
 
 LOCK = threading.RLock()
 PRICE_DATE = '2026-11-04'
@@ -297,6 +298,10 @@ def library(data=None, export_all=False):
     if category:
         observations = [r for r in observations if category in list(map(str, json.loads(r['query_json']).get('categories') or [json.loads(r['query_json']).get('category')]))]
     rows = decorate(observations)
+    focus = creative.validate(data.get('focus'))
+    for row in rows:
+        row['creative'] = creative.classify(row)
+    rows = [row for row in rows if creative.matches(row, focus)]
     word = str(data.get('keyword') or '').strip().casefold()
     if len(word) > 120:
         raise ValueError('搜索关键词过长')
@@ -338,6 +343,7 @@ def history(kind, ident):
     if not rows:
         raise ValueError('尚未收录这条内容')
     item = decorate(rows)[0]
+    item['creative'] = creative.classify(item)
     return {'item': item, 'history': [{'observed_at': r['observed_at'], 'source': r['source'], 'source_title': d.SOURCES[r['source']][0],
                                      'query': json.loads(r['query_json']), 'scope_key': r['scope_key'], 'snapshot_id': r['snapshot_id'],
                                      **{k: json.loads(r['value_json']).get(k) for k in ['rank', 'heat', 'board_play_count', 'digg_count', 'comment_count', 'share_count', 'collect_count']}}
@@ -367,6 +373,15 @@ def generate_report(data=None):
     hot_obs = all_rows('hot', until=end_s)
     works = [r for r in decorate(works_obs) if r['last_seen'] >= start_s]
     hot = [r for r in decorate(hot_obs) if r['last_seen'] >= start_s]
+    focus = creative.validate(data.get('focus'))
+    if focus != 'all':
+        for item in works + hot:
+            item['creative'] = creative.classify(item)
+        works = [r for r in works if creative.matches(r, focus)]
+        hot = [r for r in hot if creative.matches(r, focus)]
+        work_ids, hot_ids = {r['id'] for r in works}, {r['id'] for r in hot}
+        works_obs = [r for r in works_obs if r['item_id'] in work_ids]
+        hot_obs = [r for r in hot_obs if r['item_id'] in hot_ids]
     fresh = [r for r in works if r['first_seen'] >= start_s]
     rising = [r for r in hot if r['comparison'] and (r['comparison'].get('rank_change') or 0) > 0]
     rising.sort(key=lambda r: r['comparison']['rank_change'], reverse=True)
@@ -387,14 +402,18 @@ def generate_report(data=None):
     keywords.sort(key=lambda r: r['count'], reverse=True)
     shapes = [('一口气看完', r'一口气|合集|完整版'), ('假设与脑洞', r'如果|假如|当.+时|要是'),
               ('反转与悬念', r'没想到|竟然|结果|直到|真相|以为'), ('过程与教程', r'教程|如何|怎么|步骤|实测|制作|工作流')]
+    if focus != 'all':
+        shapes = [('分集连载', r'第[一二三四五六七八九十百\d]+[集话]|先导片|预告'),
+                  ('一口气看完', r'一口气|合集|完整版'), ('假设与脑洞', r'如果|假如|当.+时|要是'),
+                  ('反转与悬念', r'没想到|竟然|结果|直到|真相|以为')]
     structures = []
     for label, pattern in shapes:
         samples = [r for r in works if re.search(pattern, r['title'])]
         if samples:
             structures.append({'label': label, 'count': len(samples), 'samples': [r['id'] for r in samples[:5]]})
     ideas = []
-    creative = lambda r: r.get('allow_publish') is not False and (r.get('category') in {'科技','娱乐','游戏','动漫','影视','文化','生活'} or re.search(r'AI|人工智能|动漫|电影|短剧|游戏|音乐|宠物|搞笑|梗|挑战|机器人|动画|演唱会|猫|狗|穿越|变装|反转',r['title'],re.I))
-    candidates = [r for r in rising if creative(r)] or [r for r in hot if creative(r)]
+    creative_candidate = lambda r: r.get('allow_publish') is not False and (r.get('category') in {'科技','娱乐','游戏','动漫','影视','文化','生活'} or re.search(r'AI|人工智能|动漫|电影|短剧|游戏|音乐|宠物|搞笑|梗|挑战|机器人|动画|演唱会|猫|狗|穿越|变装|反转',r['title'],re.I))
+    candidates = [r for r in rising if creative_candidate(r)] or [r for r in hot if creative_candidate(r)]
     candidates.sort(key=lambda r:(bool(re.search(r'AI|智能|机器人|动画|短剧',r['title'],re.I)),r.get('source')=='hot_live',r.get('heat') or 0),reverse=True)
     for index, topic in enumerate(candidates[:6]):
         title = topic['title']
@@ -436,6 +455,15 @@ def generate_report(data=None):
                'structures': structures, 'ideas': ideas, 'small_accounts':small_accounts[:10],'snapshots': snapshots,
                'method': '报告只使用已保存的公开样本。排名、热度变化仅比较同一榜单和相同采集范围；首次采集无涨幅。关键词频次与标题结构属于样本描述，不能证明推流原因或保证播放量。'}
     ident = kind+'-'+anchor_date
+    if focus != 'all':
+        # A separate namespace keeps previously saved general reports intact.
+        ident += '-'+focus
+        payload.update(focus=focus, anchor_date=anchor_date, ideas=[],
+                       title=('AI 内容日报' if kind == 'daily' else 'AI 内容周报')+' · '+anchor_date,
+                       opportunities=creative.opportunities(works),
+                       lanes=[{**lane, 'works': len([r for r in works if lane['id'] in r['creative']['lanes']]),
+                               'accounts': len({r.get('sec_uid') or r.get('account_name') or r['id'] for r in works if lane['id'] in r['creative']['lanes']})}
+                              for lane in creative.LANES])
     payload['id'] = ident
     store.x('INSERT OR REPLACE INTO discovery_reports VALUES(?,?,?,?,?,?)',
             (ident, kind, start_s, end_s, payload['generated_at'], json.dumps(payload, ensure_ascii=False)))
@@ -483,7 +511,7 @@ def tick(at=None):
                     payload = {'run_id': result['id']}
                 else:
                     date = (at.date()-timedelta(days=1) if kind == 'weekly' else at.date()).isoformat()
-                    payload = {'report_id': generate_report({'kind': kind, 'date': date})['id']}
+                    payload = {'report_id': generate_report({'kind': kind, 'date': date, 'focus': 'ai'})['id']}
                 store.x('UPDATE discovery_hub_slots SET status=?,payload_json=? WHERE kind=? AND slot=?', ('completed', json.dumps(payload), kind, slot))
             except Exception as exc:
                 # No paid retries after restart, partial submission, pause or quota failure.
@@ -504,6 +532,8 @@ def export_report(identity):
     r = reports(identity)
     esc = lambda value: html.escape(str(value or ''))
     ideas = ''.join('<article><h3>'+esc(i['draft'])+'</h3><p>'+esc(i['outline'])+'</p><p>热点依据：'+esc(i['topic'])+'；热度 '+esc(i['heat'])+'</p>'+('<p><a href="https://www.douyin.com/video/'+esc(i['reference_id'])+'">形式参考：'+esc(i['reference_title'])+'</a></p>' if i['reference_id'] else '')+'</article>' for i in r['ideas'])
+    if r.get('focus'):
+        ideas = ''.join('<article><h3>'+esc(i['label'])+' · <a href="'+esc(i['work']['url'])+'">'+esc(i['work']['title'])+'</a></h3><p>'+esc(i['study'])+'</p></article>' for i in r['opportunities'])
     samples = ''.join('<tr><td><a href="'+esc(i['url'])+'">'+esc(i['title'])+'</a></td><td>'+esc(i.get('account_name'))+'</td><td>'+esc(i.get('board_play_count'))+'</td><td>'+esc(i.get('digg_count'))+'</td></tr>' for i in r['references'])
     def table(headers, rows):
         cell=lambda v:html.escape(str(v)) if v is not None else '—'
